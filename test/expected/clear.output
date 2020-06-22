@@ -1,0 +1,14 @@
+--
+-- Delete the extension and server 
+--
+\c lsmtest
+You are now connected to database "lsmtest" as user "postgres".
+DROP SERVER lsm_server;  
+DROP SERVER
+DROP EXTENSION lsm_fdw;  
+DROP EXTENSION
+  
+\c postgres  
+You are now connected to database "postgres" as user "postgres".
+DROP DATABASE lsmtest;  
+DROP DATABASE

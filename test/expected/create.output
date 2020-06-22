@@ -1,0 +1,11 @@
+--
+--Create the extension and server for tests
+--
+CREATE DATABASE lsmtest;  
+CREATE DATABASE
+\c lsmtest  
+You are now connected to database "lsmtest" as user "postgres".
+CREATE EXTENSION lsm_fdw;  
+CREATE EXTENSION
+CREATE SERVER lsm_server FOREIGN DATA WRAPPER lsm_fdw;  
+CREATE SERVER
