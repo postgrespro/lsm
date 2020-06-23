@@ -18,12 +18,12 @@ INSERT INTO testddl VALUES (DEFAULT, 'Name3', 30.00, 50, current_timestamp(2), f
  flag      | boolean                     |           |          |                                     | 
 Server: lsm_server
 
-SELECT * FROM testddl;
- id | name  | price | inventory |            stime            | flag 
-----+-------+-------+-----------+-----------------------------+------
-  1 | Name1 | 10.00 |        50 | Tue Jun 23 00:48:48.07 2020 | f
-  2 | Name2 | 20.00 |        50 | Tue Jun 23 00:48:48.07 2020 | f
-  3 | Name3 | 30.00 |        50 | Tue Jun 23 00:48:48.07 2020 | f
+SELECT id,name,price,inventory,flag FROM testddl;
+ id | name  | price | inventory | flag 
+----+-------+-------+-----------+------
+  1 | Name1 | 10.00 |        50 | f
+  2 | Name2 | 20.00 |        50 | f
+  3 | Name3 | 30.00 |        50 | f
 (3 rows)
 
 ALTER FOREIGN TABLE testddl RENAME TO item;
@@ -66,12 +66,12 @@ ALTER FOREIGN TABLE item ALTER COLUMN name TYPE TEXT;
  flag      | boolean                     |           |          |                                     | 
 Server: lsm_server
 
-SELECT * FROM item;
- id | name  | price | inventory |            stamp            | flag 
-----+-------+-------+-----------+-----------------------------+------
-  1 | Name1 | 10.00 |        50 | Tue Jun 23 00:48:48.07 2020 | f
-  2 | Name2 | 20.00 |        50 | Tue Jun 23 00:48:48.07 2020 | f
-  3 | Name3 | 30.00 |        50 | Tue Jun 23 00:48:48.07 2020 | f
+SELECT id,name,price,inventory,flag FROM item;
+ id | name  | price | inventory | flag 
+----+-------+-------+-----------+------
+  1 | Name1 | 10.00 |        50 | f
+  2 | Name2 | 20.00 |        50 | f
+  3 | Name3 | 30.00 |        50 | f
 (3 rows)
 
 ALTER FOREIGN TABLE item DROP COLUMN flag;

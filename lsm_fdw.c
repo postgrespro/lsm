@@ -11,7 +11,12 @@
 #include "funcapi.h"
 #include "utils/rel.h"
 #include "nodes/makefuncs.h"
+#if PG_VERSION_NUM < 120000
 #include "access/tuptoaster.h"
+#else
+#include "access/heapam.h"
+#include "access/heaptoast.h"
+#endif
 #include "catalog/pg_operator.h"
 #include "utils/syscache.h"
 #include "utils/typcache.h"
@@ -642,6 +647,19 @@ SerializeTuple(StringInfo key,
     }
 }
 
+/*
+ * GetSlotHeapTuple abstracts getting HeapTuple from TupleTableSlot between versions
+ */
+static HeapTuple
+GetSlotHeapTuple(TupleTableSlot *tts)
+{
+#if PG_VERSION_NUM >= 120000
+	return tts->tts_ops->copy_heap_tuple(tts);
+#else
+	return tts->tts_tuple;
+#endif
+}
+
 static TupleTableSlot*
 ExecForeignInsert(EState *executorState,
 				  ResultRelInfo *resultRelInfo,
@@ -677,11 +695,20 @@ ExecForeignInsert(EState *executorState,
     ereport(DEBUG1, (errmsg("LSM: entering function %s", __func__)));
 
     TupleDesc tupleDescriptor = slot->tts_tupleDescriptor;
+#if PG_VERSION_NUM>=130000
+	HeapTuple heapTuple = GetSlotHeapTuple(slot);
+    if (HeapTupleHasExternal(heapTuple))
+	{
+        /* detoast any toasted attributes */
+		HeapTuple newTuple = toast_flatten_tuple(heapTuple, tupleDescriptor);
+		ExecForceStoreHeapTuple(newTuple, slot, true);
+    }
+#else
     if (HeapTupleHasExternal(slot->tts_tuple)) {
         /* detoast any toasted attributes */
         slot->tts_tuple = toast_flatten_tuple(slot->tts_tuple, tupleDescriptor);
     }
-
+#endif
     slot_getallattrs(slot);
 
     StringInfo key = makeStringInfo();
@@ -734,11 +761,21 @@ ExecForeignUpdate(EState *executorState,
     ereport(DEBUG1, (errmsg("LSM: entering function %s", __func__)));
 
     TupleDesc tupleDescriptor = slot->tts_tupleDescriptor;
+#if PG_VERSION_NUM>=130000
+	HeapTuple heapTuple = GetSlotHeapTuple(slot);
+    if (HeapTupleHasExternal(heapTuple))
+	{
+        /* detoast any toasted attributes */
+		HeapTuple newTuple = toast_flatten_tuple(heapTuple, tupleDescriptor);
+		ExecForceStoreHeapTuple(newTuple, slot, true);
+    }
+#else
     if (HeapTupleHasExternal(slot->tts_tuple))
 	{
         /* detoast any toasted attributes */
         slot->tts_tuple = toast_flatten_tuple(slot->tts_tuple, tupleDescriptor);
     }
+#endif
     slot_getallattrs(slot);
 
     StringInfo key = makeStringInfo();

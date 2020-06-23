@@ -46,7 +46,11 @@ static void LsmProcessUtility(PlannedStmt *plannedStmt,
 							  ParamListInfo paramListInfo,
 							  QueryEnvironment *queryEnvironment,
 							  DestReceiver *destReceiver,
-							  char *completionTag);
+#if PG_VERSION_NUM>=130000
+							  QueryCompletion *completionTag);
+#else
+                              char *completionTag);
+#endif
 
 
 static uint8
@@ -317,8 +321,11 @@ static uint64 LsmCopyIntoTable(const CopyStmt *copyStmt,
          * not read from the file. It can be NULL when no default values are
          * used, i.e. when all columns are read from the file.
          */
+#if PG_VERSION_NUM>=130000
+        found = NextCopyFrom(copyState, econtext, values, nulls);
+#else
         found = NextCopyFrom(copyState, econtext, values, nulls, NULL);
-
+#endif
         /* write the row to the kv file */
         if (found) {
             StringInfo key = makeStringInfo();
@@ -479,7 +486,11 @@ static void LsmProcessUtility(PlannedStmt *plannedStmt,
                              ParamListInfo paramListInfo,
                              QueryEnvironment *queryEnvironment,
                              DestReceiver *destReceiver,
-                             char *completionTag)
+#if PG_VERSION_NUM>=130000
+							 QueryCompletion *completionTag)
+#else
+							  char *completionTag)
+#endif
 {
     Node *parseTree = plannedStmt->utilityStmt;
     if (nodeTag(parseTree) == T_CopyStmt) {
@@ -495,10 +506,14 @@ static void LsmProcessUtility(PlannedStmt *plannedStmt,
             }
 
             if (completionTag != NULL) {
+#if PG_VERSION_NUM>=130000
+				SetQueryCompletion(completionTag, CMDTAG_COPY, rowCount);
+#else
                 snprintf(completionTag,
                          COMPLETION_TAG_BUFSIZE,
                          "COPY " UINT64_FORMAT,
                           rowCount);
+#endif
             }
         } else {
             CALL_PREVIOUS_UTILITY(parseTree,

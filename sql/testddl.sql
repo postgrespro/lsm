@@ -12,7 +12,7 @@ INSERT INTO testddl VALUES (DEFAULT, 'Name3', 30.00, 50, current_timestamp(2), f
 
 \d testddl
 
-SELECT * FROM testddl;
+SELECT id,name,price,inventory,flag FROM testddl;
 
 ALTER FOREIGN TABLE testddl RENAME TO item;
 
@@ -28,7 +28,7 @@ ALTER FOREIGN TABLE item ALTER COLUMN name TYPE TEXT;
 
 \d item
 
-SELECT * FROM item;
+SELECT id,name,price,inventory,flag FROM item;
 
 ALTER FOREIGN TABLE item DROP COLUMN flag;
 

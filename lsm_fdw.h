@@ -3,6 +3,14 @@
 
 #include "lsm_api.h"
 
+
+#if PG_VERSION_NUM>=130000
+#include "access/table.h"
+#define heap_open(oid, lock) table_open(oid, lock)
+#define heap_close(oid, lock) table_close(oid, lock)
+#define heap_openrv(rel, lockmode) table_openrv(rel, lockmode)
+#endif
+
 /*
  * The scan state is for maintaining state for a scan, either for a
  * SELECT or UPDATE or DELETE.
