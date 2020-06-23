@@ -2,13 +2,8 @@
 -- Test the copy command 
 --
 \c lsmtest
-You are now connected to database "lsmtest" as user "postgres".
 CREATE FOREIGN TABLE product(name VARCHAR(20), make CHAR(50), product_id UUID) SERVER lsm_server;
-CREATE FOREIGN TABLE
 \copy product FROM 'test/sql/products.csv' WITH CSV;
-COPY 4
 COPY (SELECT * FROM product) TO '/tmp/products.csv' WITH (FORMAT CSV);
-COPY 4
 DROP FOREIGN TABLE product;
-DROP FOREIGN TABLE
 \! diff -uN /tmp/products.csv test/sql/products.csv

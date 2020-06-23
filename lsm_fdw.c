@@ -241,7 +241,6 @@ BeginForeignScan(ForeignScanState *scanState, int executorFlags)
     readState->operationId = 0;
     readState->done = false;
     readState->key = NULL;
-    readState->buf = NULL;
     readState->bufLen = 0;
 
     scanState->fdw_state = (void *) readState;
@@ -269,7 +268,7 @@ BeginForeignScan(ForeignScanState *scanState, int executorFlags)
         readState->hasNext = LsmReadNext(MyBackendId,
 										 relationId,
 										 ++operationId,
-										 &readState->buf,
+										 readState->buf,
 										 &readState->bufLen);
 
         readState->next = readState->buf;
@@ -344,7 +343,7 @@ GetNextFromBatch(Oid relationId,
         readState->hasNext = LsmReadNext(MyBackendId,
 										 relationId,
 										 readState->operationId,
-										 &readState->buf,
+										 readState->buf,
 										 &readState->bufLen);
 
         readState->next  = readState->buf;
@@ -411,7 +410,8 @@ IterateForeignScan(ForeignScanState *scanState)
         if (!readState->done) {
             k = readState->key->data;
             kLen = readState->key->len;
-            found = LsmLookup(MyBackendId, relationId, k, kLen, &v, &vLen);
+            found = LsmLookup(MyBackendId, relationId, k, kLen, readState->buf, &vLen);
+			v = readState->buf;
             readState->done = true;
         }
     }

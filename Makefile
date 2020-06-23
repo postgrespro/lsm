@@ -8,7 +8,8 @@ SHLIB_LINK   = -lrocksdb
 EXTENSION = lsm
 DATA = lsm--0.1.sql
 
-REGRESS = lsm
+REGRESS = create basic test testddl testcopy testcolumn
+REGRESS_OPTS = --temp-config $(top_srcdir)/contrib/lsm/lsm.conf
 
 ifdef USE_PGXS
 PG_CONFIG ?= pg_config

@@ -105,7 +105,7 @@ LsmCloseCursor(LsmQueueId qid, LsmRelationId rid, LsmCursorId cid)
 }
 
 bool
-LsmReadNext(LsmQueueId qid, LsmRelationId rid, LsmCursorId cid, char **buf, size_t *size)
+LsmReadNext(LsmQueueId qid, LsmRelationId rid, LsmCursorId cid, char *buf, size_t *size)
 {
 	LsmMessage msg;
 	LsmQueue* queue = queues[qid];
@@ -116,25 +116,25 @@ LsmReadNext(LsmQueueId qid, LsmRelationId rid, LsmCursorId cid, char **buf, size
 	msg.hdr.valueSize = 0;
 	queue->put(msg);
 	SemWait(&queue->ready);
-	*buf = queue->resp;
+	memcpy(buf, queue->resp, queue->respSize);
 	*size = queue->respSize;
 	return *size != 0;
 }
 
 
 bool
-LsmLookup(LsmQueueId qid, LsmRelationId rid, char *key, size_t keyLen, char **val, size_t *valLen)
+LsmLookup(LsmQueueId qid, LsmRelationId rid, char *key, size_t keyLen, char *val, size_t *valLen)
 {
 	LsmMessage msg;
 	LsmQueue* queue = queues[qid];
-	msg.hdr.op = LsmOpFetch;
+	msg.hdr.op = LsmOpLookup;
 	msg.hdr.rid = rid;
 	msg.hdr.keySize = keyLen;
 	msg.hdr.valueSize = 0;
 	msg.key = key;
 	queue->put(msg);
 	SemWait(&queue->ready);
-	*val = queue->resp;
+	memcpy(val, queue->resp, queue->respSize);
 	*valLen = queue->respSize;
 	return *valLen != 0;
 }

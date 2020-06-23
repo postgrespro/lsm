@@ -1,6 +1,8 @@
 #ifndef __LSM_FDW_H__
 #define __LSM_FDW_H__
 
+#include "lsm_api.h"
+
 /*
  * The scan state is for maintaining state for a scan, either for a
  * SELECT or UPDATE or DELETE.
@@ -13,10 +15,10 @@ typedef struct TableReadState {
     bool   isKeyBased;
     bool   done;
     StringInfo key;
-    char  *buf;     /* shared mem for data returned by RangeQuery or ReadBatch */
     size_t bufLen; /* shared mem length, no next batch if it is 0 */
     char  *next;    /* pointer to the next data entry for IterateForeignScan */
     bool   hasNext;  /* whether a next batch from RangeQuery or ReadBatch*/
+	char   buf[LSM_MAX_RECORD_SIZE];
 } TableReadState;
 
 /*
