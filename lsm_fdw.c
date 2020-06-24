@@ -432,13 +432,16 @@ IterateForeignScan(ForeignScanState *scanState)
 
     if (found)
 	{
-        StringInfo key = makeStringInfo();
-        appendBinaryStringInfo(key, k, kLen);
-        StringInfo val = makeStringInfo();
-        appendBinaryStringInfo(val, v, vLen);
+        StringInfoData key;
+        StringInfoData val;
+		initStringInfo(&key);
+		initStringInfo(&val);
+        appendBinaryStringInfo(&key, k, kLen);
+        appendBinaryStringInfo(&val, v, vLen);
 
-        DeserializeTuple(key, val, tupleSlot);
-
+        DeserializeTuple(&key, &val, tupleSlot);
+		pfree(key.data);
+		pfree(val.data);
         ExecStoreVirtualTuple(tupleSlot);
     }
 
@@ -647,19 +650,6 @@ SerializeTuple(StringInfo key,
     }
 }
 
-/*
- * GetSlotHeapTuple abstracts getting HeapTuple from TupleTableSlot between versions
- */
-static HeapTuple
-GetSlotHeapTuple(TupleTableSlot *tts)
-{
-#if PG_VERSION_NUM >= 120000
-	return tts->tts_ops->copy_heap_tuple(tts);
-#else
-	return tts->tts_tuple;
-#endif
-}
-
 static TupleTableSlot*
 ExecForeignInsert(EState *executorState,
 				  ResultRelInfo *resultRelInfo,
@@ -696,12 +686,14 @@ ExecForeignInsert(EState *executorState,
 
     TupleDesc tupleDescriptor = slot->tts_tupleDescriptor;
 #if PG_VERSION_NUM>=130000
-	HeapTuple heapTuple = GetSlotHeapTuple(slot);
+	bool shouldFree;
+	HeapTuple heapTuple = ExecFetchSlotHeapTuple(slot, false, &shouldFree);
     if (HeapTupleHasExternal(heapTuple))
 	{
         /* detoast any toasted attributes */
 		HeapTuple newTuple = toast_flatten_tuple(heapTuple, tupleDescriptor);
-		ExecForceStoreHeapTuple(newTuple, slot, true);
+		ExecForceStoreHeapTuple(newTuple, slot, shouldFree);
+		shouldFree = false;
     }
 #else
     if (HeapTupleHasExternal(slot->tts_tuple)) {
@@ -711,16 +703,25 @@ ExecForeignInsert(EState *executorState,
 #endif
     slot_getallattrs(slot);
 
-    StringInfo key = makeStringInfo();
-    StringInfo val = makeStringInfo();
+    StringInfoData key;
+    StringInfoData val;
 
     Relation relation = resultRelInfo->ri_RelationDesc;
     Oid foreignTableId = RelationGetRelid(relation);
 
-    SerializeTuple(key, val, slot);
+	initStringInfo(&key);
+	initStringInfo(&val);
+    SerializeTuple(&key, &val, slot);
 
-    if (!LsmInsert(MyBackendId, foreignTableId, key->data, key->len, val->data, val->len))
+    if (!LsmInsert(MyBackendId, foreignTableId, key.data, key.len, val.data, val.len))
 		elog(ERROR, "LSM: Failed to insert tuple");
+
+#if PG_VERSION_NUM>=130000
+	if (shouldFree)
+		pfree(heapTuple);
+#endif
+	pfree(key.data);
+	pfree(val.data);
 
     return slot;
 }
@@ -762,12 +763,14 @@ ExecForeignUpdate(EState *executorState,
 
     TupleDesc tupleDescriptor = slot->tts_tupleDescriptor;
 #if PG_VERSION_NUM>=130000
-	HeapTuple heapTuple = GetSlotHeapTuple(slot);
+	bool shouldFree;
+	HeapTuple heapTuple = ExecFetchSlotHeapTuple(slot, false, &shouldFree);
     if (HeapTupleHasExternal(heapTuple))
 	{
         /* detoast any toasted attributes */
 		HeapTuple newTuple = toast_flatten_tuple(heapTuple, tupleDescriptor);
-		ExecForceStoreHeapTuple(newTuple, slot, true);
+		ExecForceStoreHeapTuple(newTuple, slot, shouldFree);
+		shouldFree = false;
     }
 #else
     if (HeapTupleHasExternal(slot->tts_tuple))
@@ -778,15 +781,24 @@ ExecForeignUpdate(EState *executorState,
 #endif
     slot_getallattrs(slot);
 
-    StringInfo key = makeStringInfo();
-    StringInfo val = makeStringInfo();
+    StringInfoData key;
+    StringInfoData val;
 
     Relation relation = resultRelInfo->ri_RelationDesc;
     Oid foreignTableId = RelationGetRelid(relation);
 
-    SerializeTuple(key, val, slot);
+	initStringInfo(&key);
+	initStringInfo(&val);
+    SerializeTuple(&key, &val, slot);
 
-    LsmInsert(MyBackendId, foreignTableId, key->data, key->len, val->data, val->len);
+    LsmInsert(MyBackendId, foreignTableId, key.data, key.len, val.data, val.len);
+
+#if PG_VERSION_NUM>=130000
+	if (shouldFree)
+		pfree(heapTuple);
+#endif
+	pfree(key.data);
+	pfree(val.data);
 
     return slot;
 }
@@ -825,18 +837,23 @@ ExecForeignDelete(EState *executorState,
 
     slot_getallattrs(planSlot);
 
-    StringInfo key = makeStringInfo();
-    StringInfo val = makeStringInfo();
+    StringInfoData key;
+    StringInfoData val;
 
     Relation relation = resultRelInfo->ri_RelationDesc;
     Oid foreignTableId = RelationGetRelid(relation);
 
-    SerializeTuple(key, val, planSlot);
+	initStringInfo(&key);
+	initStringInfo(&val);
+    SerializeTuple(&key, &val, planSlot);
 
-    if (!LsmDelete(MyBackendId, foreignTableId, key->data, key->len))
+    if (!LsmDelete(MyBackendId, foreignTableId, key.data, key.len))
 		elog(ERROR, "LSM: Failed to delete tuple");
 
-    return slot;
+	pfree(key.data);
+	pfree(val.data);
+
+	return slot;
 }
 
 static void
