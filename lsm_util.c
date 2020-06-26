@@ -626,6 +626,17 @@ _PG_init(void)
 							 NULL,
 							 NULL);
 
+    DefineCustomBoolVariable("lsm.upsert",
+							 "Use implicit upsert semantic",
+							 "If key of inserted record already exists, then replace old record with new one",
+							 &LsmUpsert,
+							 true,
+							 PGC_USERSET,
+							 0,
+							 NULL,
+							 NULL,
+							 NULL);
+
 	RequestAddinShmemSpace(LsmShmemSize(MaxConnections));
 	elog(DEBUG1, "Request %ld bytes of shared memory",  LsmShmemSize(MaxConnections));
 

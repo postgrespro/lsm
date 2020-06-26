@@ -25,6 +25,7 @@ extern "C" {
 
 extern int  LsmQueueSize;
 extern bool LsmSync;
+extern bool LsmUpsert;
 
 typedef int     LsmRelationId;
 typedef int     LsmQueueId;

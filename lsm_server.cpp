@@ -9,6 +9,7 @@ static LsmServer* server;;
 // LSM GUCs
 int  LsmQueueSize;
 bool LsmSync;
+bool LsmUpsert;
 
 /*
  * Enqueue message

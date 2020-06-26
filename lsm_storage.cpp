@@ -86,9 +86,18 @@ LsmConnection::lookup(char const* key, size_t keyLen, char* buf)
 bool
 LsmConnection::insert(char* key, size_t keyLen, char* val, size_t valLen)
 {
+	Status s;
 	WriteOptions opts;
+	if (!LsmUpsert)
+	{
+		std::string sval;
+		ReadOptions ro;
+		s = db->Get(ro, Slice(key, keyLen), &sval);
+		if (s.ok()) // key already exists 
+			return false;
+	}
 	opts.sync = LsmSync;
-    Status s = db->Put(opts, Slice(key, keyLen), Slice(val, valLen));
+	s = db->Put(opts, Slice(key, keyLen), Slice(val, valLen));
     return s.ok();
 }
 
