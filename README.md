@@ -53,9 +53,9 @@ We test this foreign data wrapper on Ubuntu Server 18.04 using PostgreSQL-11 tog
 - Build this foreign data wrapper:
 
   ```sh
-  git clone https://github.com/vidardb/PostgresForeignDataWrapper.git
+  git clone git@github.com:postgrespro/lsm.git
 
-  cd PostgresForeignDataWrapper 
+  cd lsm
 
   make
 
@@ -65,7 +65,7 @@ We test this foreign data wrapper on Ubuntu Server 18.04 using PostgreSQL-11 tog
 - Before using this foreign data wrapper, we need to add it to `shared_preload_libraries` in the `postgresql.conf`:
 
   ```sh
-  sudo bash -c 'echo "shared_preload_libraries = 'lsm'" >> /etc/postgresql/11/main/postgresql.conf'
+  echo "shared_preload_libraries = 'lsm'" >> postgresql.conf
   ```
 
   and restart PostgreSQL:
