@@ -150,7 +150,8 @@ GetForeignPlan(PlannerInfo *root,
 }
 
 static void
-GetKeyBasedQual(Node *node,
+GetKeyBasedQual(ForeignScanState *scanState,
+				Node *node,
 				Relation relation,
 				TableReadState *readState)
 {
@@ -169,7 +170,8 @@ GetKeyBasedQual(Node *node,
     }
 
     Node *right = list_nth(op->args, 1);
-    if (!IsA(right, Const)) {
+    if (!IsA(right, Const) && !IsA(right, Param)) {
+		elog(LOG, "right node type is %d", right->type);
         return;
     }
 
@@ -193,13 +195,25 @@ GetKeyBasedQual(Node *node,
     }
     ReleaseSysCache(opertup);
 
-    Const *constNode = ((Const *) right);
-    Datum datum = constNode->constvalue;
+    Datum keyDatum;
+	Oid   keyType;
 
-    TypeCacheEntry *typeEntry = lookup_type_cache(constNode->consttype, 0);
+	if (IsA(right, Const))
+	{
+		Const *constNode = (Const *) right;
+		keyDatum = constNode->constvalue;
+		keyType = constNode->consttype;
+	}
+	else
+	{
+		Param *paramNode = (Param *) right;
+		keyType = paramNode->paramtype;
+		keyDatum = scanState->ss.ps.state->es_param_list_info->params[paramNode->paramid-1].value;
+	}
+    TypeCacheEntry *typeEntry = lookup_type_cache(keyType, 0);
 
     /* constant gets varlena with 4B header, same with copy uility */
-    datum = ShortVarlena(datum, typeEntry->typlen, typeEntry->typstorage);
+    keyDatum = ShortVarlena(keyDatum, typeEntry->typlen, typeEntry->typstorage);
 
     /*
      * We can push down this qual if:
@@ -210,7 +224,7 @@ GetKeyBasedQual(Node *node,
     readState->key = makeStringInfo();
     TupleDesc tupleDescriptor = relation->rd_att;
 
-    SerializeAttribute(tupleDescriptor, varattno-1, datum, readState->key);
+    SerializeAttribute(tupleDescriptor, varattno-1, keyDatum, readState->key);
 
     return;
 }
@@ -258,7 +272,8 @@ BeginForeignScan(ForeignScanState *scanState, int executorFlags)
     ListCell *lc;
     foreach (lc, scanState->ss.ps.plan->qual) {
         Expr *state = lfirst(lc);
-        GetKeyBasedQual((Node *) state,
+        GetKeyBasedQual(scanState,
+						(Node *) state,
                         scanState->ss.ss_currentRelation,
                         readState);
         if (readState->isKeyBased) {
