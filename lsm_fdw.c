@@ -170,8 +170,10 @@ GetKeyBasedQual(ForeignScanState *scanState,
     }
 
     Node *right = list_nth(op->args, 1);
+	if (IsA(right, RelabelType)) {
+		right = (Node*) ((RelabelType*)right)->arg;
+	}
     if (!IsA(right, Const) && !IsA(right, Param)) {
-		elog(LOG, "right node type is %d", right->type);
         return;
     }
 
