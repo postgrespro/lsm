@@ -457,8 +457,6 @@ IterateForeignScan(ForeignScanState *scanState)
         appendBinaryStringInfo(&val, v, vLen);
 
         DeserializeTuple(&key, &val, tupleSlot);
-		pfree(key.data);
-		pfree(val.data);
         ExecStoreVirtualTuple(tupleSlot);
     }
 
