@@ -4,7 +4,7 @@
 
 [![Build Status](https://travis-ci.com/vidardb/PostgresForeignDataWrapper.svg?branch=master)](https://travis-ci.com/github/vidardb/PostgresForeignDataWrapper)
 
-This PostgreSQL extension implements a Foreign Data Wrapper (FDW) for [RocksDB](https://rocksdb.org/). This repo has been listed in PostgreSQL [wiki](https://wiki.postgresql.org/wiki/Foreign_data_wrappers). 
+This PostgreSQL extension implements a Foreign Data Wrapper (FDW) for [RocksDB](https://rocksdb.org/). This repo has been listed in PostgreSQL [wiki](https://wiki.postgresql.org/wiki/Foreign_data_wrappers).
 
 RocksDB is a high performance key-value store based on a log-structured merge-tree (LSM tree). RocksDB can efficiently use many CPU cores and fast storage. This is the first foreign data wrapper that connects a LSM-tree-based storage engine to PostgreSQL. Because RocksDB is an embeddable key-value store, you do not need to run another server to use this extension.
 
@@ -53,19 +53,19 @@ We test this foreign data wrapper on Ubuntu Server 18.04 using PostgreSQL-11 tog
 - Build this foreign data wrapper:
 
   ```sh
-  git clone git@github.com:postgrespro/lsm.git
+  git clone https://github.com/whrgogogo666/pg_rocksdb.git
 
-  cd lsm
+  cd pg_rocksdb
 
-  make
+  make USE_PGXS=1
 
-  sudo make install
+  sudo make USE_PGXS=1 install
   ```
 
 - Before using this foreign data wrapper, we need to add it to `shared_preload_libraries` in the `postgresql.conf`:
 
   ```sh
-  echo "shared_preload_libraries = 'lsm'" >> postgresql.conf
+  echo "shared_preload_libraries = 'pg_rocksdb'" >> postgresql.conf
   ```
 
   and restart PostgreSQL:
@@ -90,7 +90,7 @@ We test this foreign data wrapper on Ubuntu Server 18.04 using PostgreSQL-11 tog
 
 - ACID relies on the storage engine.
 
-- Data types of Postgres are not natively supported. 
+- Data types of Postgres are not natively supported.
 
 # Usage
 
@@ -103,10 +103,10 @@ A simple example is as follows (*you can run '`sudo -u postgres psql -U postgres
     CREATE DATABASE example;  
     \c example  
 
-    CREATE EXTENSION lsm;  
-    CREATE SERVER lsm_server FOREIGN DATA WRAPPER lsm_fdw;  
+    CREATE EXTENSION pg_rocksdb;  
+    CREATE SERVER lsm_server FOREIGN DATA WRAPPER pg_rocksdb_fdw;  
 
-    CREATE FOREIGN TABLE student(id INTEGER, name TEXT) SERVER lsm_server;  
+    CREATE FOREIGN TABLE student(id INTEGER, name TEXT) SERVER pg_rocksdb_server;  
 
     INSERT INTO student VALUES(20757123, 'Rafferty');  
     SELECT * FROM student;  
@@ -122,8 +122,8 @@ A simple example is as follows (*you can run '`sudo -u postgres psql -U postgres
 
     DROP FOREIGN TABLE student;  
 
-    DROP SERVER lsm_server;  
-    DROP EXTENSION lsm_fdw;  
+    DROP SERVER pg_rocksdb_server;  
+    DROP EXTENSION pg_rocksdb_fdw;  
   
     \c postgres  
     DROP DATABASE example;  
@@ -147,7 +147,7 @@ We have tested certain typical SQL statements and will add more test cases later
     sudo -u postgres psql -U postgres -d lsmtest -a -f test/sql/clear.sql  
 ```
 
-# Debug 
+# Debug
 
 If you want to debug the source code, you may need to start PostgreSQL in the debug mode:
 
