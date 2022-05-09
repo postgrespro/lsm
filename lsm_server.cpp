@@ -418,7 +418,7 @@ LsmServer::open(LsmMessage const& msg)
 
         // 判断这个列族是否存在，不存在就创建列族
         std::vector<std::string>* column_families = new std::vector<std::string>;  //表示rksdb中所有的列族
-        DBOptions* db_options;  //数据库库的配置选项
+        DBOptions db_options;  //数据库库的配置选项
         DB::ListColumnFamilies(db_options, con.db_path, column_families);
         bool isExist = false;
         for (int j = 0; j < (*column_families).size(); ++j) {
@@ -432,7 +432,15 @@ LsmServer::open(LsmMessage const& msg)
         ColumnFamilyHandle *cf; //列族的处理器
         if(!isExist){
             // 不存在此列族，就创建一个对应的列族
-            DB::CreateColumnFamily(cf_options, std::string(col_family_name), cf);
+            Options options;
+            options.create_if_missing = true;
+            // open db
+            Status s = DB::Open(options, con.db_path, &con.db);
+            // create column family
+            s = con.db->CreateColumnFamily(cf_options, std::string(col_family_name), cf);
+            // close db
+            s = con.db->DestroyColumnFamilyHandle(cf);
+            delete con.db;
         }
 
         // 将默认列族和新创建的列族加入其中

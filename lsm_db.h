@@ -14,7 +14,6 @@
 using namespace rocksdb;
 
 // 添加头文件
-using ROCKSDB_NAMESPACE;
 
 /*
  * Wrapper for RocksSB
