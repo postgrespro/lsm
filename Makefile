@@ -6,7 +6,7 @@ PG_CPPFLAGS += -Wno-declaration-after-statement
 SHLIB_LINK   = -lrocksdb
 
 EXTENSION = pg_rocksdb
-DATA = lsm--0.1.sql
+DATA = pg_rocksdb--0.1.sql
 
 REGRESS = create basic test testddl testcopy testcolumn
 REGRESS_OPTS = --temp-config $(top_srcdir)/contrib/pg_rocksdb/pg_rocksdb.conf

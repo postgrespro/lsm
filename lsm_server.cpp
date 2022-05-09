@@ -437,7 +437,7 @@ LsmServer::open(LsmMessage const& msg)
             // open db
             Status s = DB::Open(options, con.db_path, &con.db);
             // create column family
-            s = con.db->CreateColumnFamily(cf_options, std::string(col_family_name), cf);
+            s = con.db->CreateColumnFamily(cf_options, std::string(col_family_name), &cf);
             // close db
             s = con.db->DestroyColumnFamilyHandle(cf);
             delete con.db;

@@ -33,7 +33,7 @@ LsmConnection::close()
 {
     // @todo 关闭列族
     for (auto handle : handles) {
-        s = db->DestroyColumnFamilyHandle(handle);
+        Status s = db->DestroyColumnFamilyHandle(handle);
         assert(s.ok());
     }
     delete db;
