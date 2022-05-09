@@ -1,5 +1,5 @@
-# LSM FDW
+# pg_rocksdb FDW
 comment = 'RocksDB Foreign Data Wrapper'
 default_version = '0.1'
-module_pathname = '$libdir/lsm'
+module_pathname = '$libdir/pg_rocksdb'
 relocatable = true

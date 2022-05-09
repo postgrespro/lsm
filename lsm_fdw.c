@@ -32,7 +32,8 @@
 PG_MODULE_MAGIC;
 #endif
 
-PG_FUNCTION_INFO_V1(lsm_fdw_handler);
+// 魔法块
+PG_FUNCTION_INFO_V1(pg_rocksdb_handler);
 
 static void
 GetForeignRelSize(PlannerInfo *root,
@@ -975,7 +976,7 @@ AnalyzeForeignTable(Relation relation,
     return false;
 }
 
-Datum lsm_fdw_handler(PG_FUNCTION_ARGS)
+Datum pg_rocksdb_handler(PG_FUNCTION_ARGS)
 {
     FdwRoutine *routine = makeNode(FdwRoutine);
 
