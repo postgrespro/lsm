@@ -3,13 +3,27 @@
 //
 #include "lsm_db.h"
 
+
+/**
+ *  @param path rocksdb数据库的路径
+ * 如果在使用rocksdb时没有显式使用过列族，就会发现，所有的操作都发生在一个列族中，
+ * 这个列族名称为default.
+ */
 void
 LsmConnection::open(char const* path)
 {
+    // https://wanghenshui.github.io/rocksdb-doc-cn/doc/Column-Families.html
+    // ColumnFamilyOptions 用于配置列族，DBOptions用于数据库粒度的配置
+    // Options 继承了了ColumnFamilyOptions和DBOptions,因此Options可以执行上述两种配置
     Options options;
     options.create_if_missing = true;
 
-    Status s = DB::Open(options, std::string(path), &db);
+    // @todo hr,wu 数据库路径
+    std::string p(path);
+    db_path = p;   // 给LSMConnection中的属性赋值
+
+    // @todo hr,wu 使用LSMConnection中的关于列族的参数来打开数据库
+    Status s = DB::Open(options, std::string(path), column_families, &handles, &db);
     if (!s.ok())
 		LsmError(s.getState());
 }
@@ -17,6 +31,11 @@ LsmConnection::open(char const* path)
 void
 LsmConnection::close()
 {
+    // @todo 关闭列族
+    for (auto handle : handles) {
+        s = db->DestroyColumnFamilyHandle(handle);
+        assert(s.ok());
+    }
     delete db;
 	db = NULL;
 }
@@ -75,7 +94,7 @@ LsmConnection::lookup(char const* key, size_t keyLen, char* buf)
 {
 	std::string sval;
     ReadOptions ro;
-    Status s = db->Get(ro, Slice(key, keyLen), &sval);
+    Status s = db->Get(ro, handles[1], Slice(key, keyLen), &sval);
     if (!s.ok())
 		return 0;
 	size_t valLen = sval.length();
@@ -97,7 +116,11 @@ LsmConnection::insert(char* key, size_t keyLen, char* val, size_t valLen)
 			return false;
 	}
 	opts.sync = LsmSync;
-	s = db->Put(opts, Slice(key, keyLen), Slice(val, valLen));
+
+	// @todo hr,wu---真正向rksdb中插入数据---
+	// https://wanghenshui.github.io/rocksdb-doc-cn/doc/Column-Families.html
+    // 插入数据的具体操作
+	s = db->Put(opts, handles[1], Slice(key, keyLen), Slice(val, valLen));
     return s.ok();
 }
 
@@ -106,7 +129,7 @@ LsmConnection::remove(char* key, size_t keyLen)
 {
 	WriteOptions opts;
 	opts.sync = LsmSync;
-    Status s = db->Delete(opts, Slice(key, keyLen));
+    Status s = db->Delete(opts, handles[1], Slice(key, keyLen));
     return s.ok();
 }
 

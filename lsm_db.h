@@ -1,10 +1,15 @@
 #ifndef __LSM_DB_H__
 #define __LSM_DB_H__
 
+#include <cstdio>
+#include <vector>
+#include "string.h"
+
 #include "lsm_api.h"
 #include "lsm_posix.h"
 #include "rocksdb/db.h"
 #include "rocksdb/options.h"
+#include "rocksdb/slice.h"
 
 using namespace rocksdb;
 
@@ -15,7 +20,12 @@ struct LsmConnection
 {
 	DB* db;
 
-	void      open(char const* path);
+	// @todo hr,wu
+	std::string db_path; //数据库路径
+    std::vector<ColumnFamilyDescriptor> column_families;    //列族
+    std::vector<ColumnFamilyHandle*> handles;   //列族的处理器
+
+	void      open(char const* path);   // RocksDB的打开路径
 	uint64_t  count();
 	void      close();
 	Iterator* getIterator();

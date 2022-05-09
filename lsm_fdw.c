@@ -994,7 +994,7 @@ Datum lsm_fdw_handler(PG_FUNCTION_ARGS)
     routine->GetForeignRelSize = GetForeignRelSize;
     routine->GetForeignPaths = GetForeignPaths;
     routine->GetForeignPlan = GetForeignPlan;
-    routine->BeginForeignScan = BeginForeignScan;
+    routine->BeginForeignScan = BeginForeignScan;   //执行外部表扫描
     routine->IterateForeignScan = IterateForeignScan;
     routine->ReScanForeignScan = ReScanForeignScan;
     routine->EndForeignScan = EndForeignScan;
@@ -1004,7 +1004,7 @@ Datum lsm_fdw_handler(PG_FUNCTION_ARGS)
     routine->AddForeignUpdateTargets = AddForeignUpdateTargets;
     routine->PlanForeignModify = PlanForeignModify;
     routine->BeginForeignModify = BeginForeignModify;
-    routine->ExecForeignInsert = ExecForeignInsert;
+    routine->ExecForeignInsert = ExecForeignInsert; //执行插入操作
     routine->ExecForeignUpdate = ExecForeignUpdate;
     routine->ExecForeignDelete = ExecForeignDelete;
     routine->EndForeignModify = EndForeignModify;
