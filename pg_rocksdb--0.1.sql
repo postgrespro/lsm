@@ -1,5 +1,6 @@
 CREATE FUNCTION pg_rocksdb_handler()
-RETURNS pg_rocksdb_handler
+-- 底下必须返回的是fdw_handler,而不是其他的
+RETURNS fdw_handler
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT;
 
