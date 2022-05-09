@@ -428,7 +428,7 @@ LsmServer::open(LsmMessage const& msg)
                 break;
             }
         }
-        ColumnFamilyOptions* cf_options;    //列族的配置选项
+        ColumnFamilyOptions cf_options;    //列族的配置选项
         ColumnFamilyHandle *cf; //列族的处理器
         if(!isExist){
             // 不存在此列族，就创建一个对应的列族
