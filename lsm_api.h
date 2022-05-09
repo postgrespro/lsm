@@ -21,7 +21,7 @@ extern "C" {
 /*
  * Name of the directory in $PGDATA
  */
-#define LSM_FDW_NAME        "lsm"
+#define LSM_FDW_NAME        "pg_rocksdb"
 
 extern int  LsmQueueSize;
 extern bool LsmSync;
