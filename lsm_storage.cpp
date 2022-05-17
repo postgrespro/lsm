@@ -120,7 +120,7 @@ LsmConnection::insert(char* key, size_t keyLen, char* val, size_t valLen)
 	// @todo hr,wu---真正向rksdb中插入数据---
 	// https://wanghenshui.github.io/rocksdb-doc-cn/doc/Column-Families.html
     // 插入数据的具体操作
-	s = db->Put(opts, handles[1], Slice(key, keyLen), Slice(val, valLen));
+	s = db->Put(opts, Slice(key, keyLen), Slice(val, valLen));
     return s.ok();
 }
 
@@ -129,7 +129,7 @@ LsmConnection::remove(char* key, size_t keyLen)
 {
 	WriteOptions opts;
 	opts.sync = LsmSync;
-    Status s = db->Delete(opts, handles[1], Slice(key, keyLen));
+    Status s = db->Delete(opts, Slice(key, keyLen));
     return s.ok();
 }
 

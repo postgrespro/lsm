@@ -404,51 +404,6 @@ LsmServer::open(LsmMessage const& msg)
 	{
 		char path[64];
 		sprintf(path, "%s/%d", LSM_FDW_NAME, msg.hdr.rid);
-
-		// @todo 根据msg中的key来打开对应的DB
-		char* key = msg.key;
-        char* col_family_name = nullptr;    //列族名称
-        int i = 0;
-        while(key[i] != '_'){   // 而每个列族的名称为key的第一个下划线之前的字符串
-            i++;
-        }
-        col_family_name = (char *) malloc((i+10) * sizeof (char ));
-        strncpy(col_family_name, key, i);
-        col_family_name[i] = '\0';
-
-        // 判断这个列族是否存在，不存在就创建列族
-        std::vector<std::string>* column_families = new std::vector<std::string>;  //表示rksdb中所有的列族
-        DBOptions db_options;  //数据库库的配置选项
-        DB::ListColumnFamilies(db_options, con.db_path, column_families);
-        bool isExist = false;
-        for (int j = 0; j < (*column_families).size(); ++j) {
-            std::string name = (*column_families)[j];
-            if(name == std::string(col_family_name)){
-                isExist = true;
-                break;
-            }
-        }
-        ColumnFamilyOptions cf_options;    //列族的配置选项
-        ColumnFamilyHandle *cf; //列族的处理器
-        if(!isExist){
-            // 不存在此列族，就创建一个对应的列族
-            Options options;
-            options.create_if_missing = true;
-            // open db
-            Status s = DB::Open(options, con.db_path, &con.db);
-            // create column family
-            s = con.db->CreateColumnFamily(cf_options, std::string(col_family_name), &cf);
-            // close db
-            s = con.db->DestroyColumnFamilyHandle(cf);
-            delete con.db;
-        }
-
-        // 将默认列族和新创建的列族加入其中
-        con.column_families.push_back(ColumnFamilyDescriptor(   //打开默认列族
-                kDefaultColumnFamilyName, ColumnFamilyOptions()));
-        con.column_families.push_back(ColumnFamilyDescriptor(   //打开新的列族
-                std::string(col_family_name), ColumnFamilyOptions()));
-
         // 打开数据库
 		con.open(path);
 	}
