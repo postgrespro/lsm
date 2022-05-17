@@ -10,6 +10,9 @@
 extern "C" {
 #endif
 
+
+// 此文件定义了大量关于线程的操作
+
 #define PthreadCreate(t,attr,start,arg) PthreadCreate_(t,attr,start,arg,__func__)
 #define PthreadJoin(t,exitcode) PthreadJoin_(t,exitcode,__func__)
 #define SemInit(sem,shared,value) SemInit_(sem,shared,value,__func__)

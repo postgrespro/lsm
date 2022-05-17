@@ -2,7 +2,7 @@
 // Worker's part of LSM queue
 //
 #include "lsm_api.h"
-#include "lsm_db.h"
+#include "lsm_db.h"	//包含lsm_storage.cpp中的一些实现的函数，也就是对rocksdb进行操作的函数，例如crud操作
 
 static LsmServer* server;;
 
@@ -14,6 +14,7 @@ bool LsmUpsert;
 /*
  * Enqueue message
  */
+// 传入的参数为LsmMessage，将LsmMessage中的数据存入到数据库中
 void LsmQueue::put(LsmMessage const& msg)
 {
 	int size = sizeof(LsmMessageHeader) + msg.hdr.keySize + msg.hdr.valueSize;
@@ -60,6 +61,7 @@ void LsmQueue::put(LsmMessage const& msg)
 		// Copy key
 		if (tail <= msg.hdr.keySize)
 		{
+			// C 库函数 void *memcpy(void *str1, const void *str2, size_t n) 从存储区 str2 复制 n 个字节到存储区 str1。
 			memcpy(&req[putPos], msg.key, tail);
 			memcpy(&req[0], msg.key + tail, msg.hdr.keySize - tail);
 			putPos = msg.hdr.keySize - tail;
@@ -193,6 +195,7 @@ void
 LsmWorker::insert(LsmMessage const& msg)
 {
 	LsmConnection& con(open(msg));
+	// 通过调用con插入key,value数据，resp为插入之后的返回值
 	queue->resp[0] = (char)con.insert(msg.key, msg.hdr.keySize, msg.value, msg.hdr.valueSize);
 	if (LsmSync)
 		SemPost(&queue->ready);
@@ -260,12 +263,16 @@ LsmWorker::fetch(LsmMessage const& msg)
 	SemPost(&queue->ready);
 }
 
+
+
+// 主循环，进行rocksdb的主操作
 /*
  * Worker main loop
  */
 void
 LsmWorker::run()
 {
+	// 一直处于监听情况下
 	while (true)
 	{
 		LsmMessage msg;
@@ -300,6 +307,9 @@ LsmWorker::run()
 	}
 }
 
+
+
+// 开启一个LsmWorker，调用其主函数
 void
 LsmWorker::start()
 {
@@ -320,6 +330,8 @@ LsmWorker::wait()
 	PthreadJoin(thread, &status);
 }
 
+
+// 主函数
 void*
 LsmWorker::main(void* arg)
 {
@@ -349,6 +361,8 @@ LsmStopWorkers(void)
 	server->stop();
 }
 
+
+// 封装了对LsmWorker的操作，也就是当外部数据来的时候，将插入数据等操作用一个LsmWorker来操作
 LsmServer::LsmServer(size_t maxClients) : nWorkers(maxClients)
 {
 	workers = new LsmWorker*[nWorkers];
@@ -395,6 +409,9 @@ LsmServer::stop()
 	}
 }
 
+
+
+// 返回rocksdb的con
 LsmConnection&
 LsmServer::open(LsmMessage const& msg)
 {

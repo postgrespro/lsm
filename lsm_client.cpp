@@ -57,15 +57,17 @@ LsmDelete(LsmQueueId qid, LsmRelationId rid, char *key, size_t keyLen)
 	return true;
 }
 
+
+// 将传入的数据以LsmMessage进行传输
 bool
 LsmInsert(LsmQueueId qid, LsmRelationId rid, char *key, size_t keyLen, char *val, size_t valLen)
 {
 	LsmMessage msg;
 	LsmQueue* queue = queues[qid];
 	msg.hdr.op = LsmOpInsert;
-	msg.hdr.rid = rid;
-	msg.hdr.keySize = keyLen;
-	msg.hdr.valueSize = valLen;
+	msg.hdr.rid = rid;	//外部表oid
+	msg.hdr.keySize = keyLen;	//key的长度
+	msg.hdr.valueSize = valLen;	//value的长度
 	msg.key = key;
 	msg.value = val;
 	queue->put(msg);
@@ -76,6 +78,8 @@ LsmInsert(LsmQueueId qid, LsmRelationId rid, char *key, size_t keyLen, char *val
 	}
 	return true;
 }
+
+
 
 uint64_t
 LsmCount(LsmQueueId qid, LsmRelationId rid)

@@ -3,6 +3,8 @@
 //
 #include "lsm_db.h"
 
+// 此函数是LsmConnection 中的成员函数，
+// 而LsmConnection中有一个非常重要的成员变量：DB* db;
 void
 LsmConnection::open(char const* path)
 {

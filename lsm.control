@@ -1,5 +1,0 @@
-# LSM FDW
-comment = 'RocksDB Foreign Data Wrapper'
-default_version = '0.1'
-module_pathname = '$libdir/lsm'
-relocatable = true

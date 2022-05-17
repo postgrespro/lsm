@@ -95,11 +95,17 @@ DecodeVarintLength(char* start, char* limit, uint64* len)
  * Checks if the given foreign server belongs to kv_fdw. If it
  * does, the function returns true. Otherwise, it returns false.
  */
+//http://www.postgres.cn/docs/9.4/fdw-helpers.html
 static bool LsmServer(ForeignServer *server) {
     char *fdwName = GetForeignDataWrapper(server->fdwid)->fdwname;
     return strncmp(fdwName, LSM_FDW_NAME "_fdw", NAMEDATALEN) == 0;
 }
 
+
+
+
+
+// 判断给定了表是否是属于外部表格
 /*
  * Checks if the given table name belongs to a foreign Lsm table.
  * If it does, the function returns true. Otherwise, it returns false.
@@ -224,10 +230,12 @@ void SerializeNullAttribute(TupleDesc tupleDescriptor,
     buffer->len += headerLen;
 }
 
-void SerializeAttribute(TupleDesc tupleDescriptor,
-                        Index index,
-                        Datum datum,
-                        StringInfo buffer) {
+
+// 序列化属性
+void SerializeAttribute(TupleDesc tupleDescriptor,  //元组
+                        Index index,    // 当前属性的下标
+                        Datum datum,    // 当前属性的值
+                        StringInfo buffer) {    //以当前这一行的第一个属性的值作为key，其他的属性为val
     Form_pg_attribute attributeForm = TupleDescAttr(tupleDescriptor, index);
     bool byValue = attributeForm->attbyval;
     int typeLength = attributeForm->attlen;
@@ -255,6 +263,7 @@ void SerializeAttribute(TupleDesc tupleDescriptor,
 
     if (typeLength > 0) {
         if (byValue) {
+            // 存储指定的值到指定地址中
             store_att_byval(current, datum, typeLength);
         } else {
             memcpy(current, DatumGetPointer(datum), typeLength);

@@ -34,6 +34,16 @@ PG_MODULE_MAGIC;
 
 PG_FUNCTION_INFO_V1(lsm_fdw_handler);
 
+
+/*
+root是规划器的关于该查询的全局信息
+baserel是规划器的关于该表的信息
+foreigntableid是外部表在pg_class中的 OID （foreigntableid可以从规划器的数据结构中获得，但是为了减少工作量，这里直接显式地将它传递给函数）。
+*/
+
+// 这些hook函数的参数都是系统定义好的
+// 获取外部表格的size
+// baserel 是planner中关于外部表格的信息
 static void
 GetForeignRelSize(PlannerInfo *root,
 				  RelOptInfo *baserel,
@@ -63,9 +73,12 @@ GetForeignRelSize(PlannerInfo *root,
      * we should open & close db multiple times.
      */
     /* TODO: better estimation */
+    // baserel is the planer's informatino about this table
     baserel->rows = LsmCount(MyBackendId, foreignTableId);
 }
 
+
+// 创建一个扫描外部表的访问路径
 static void
 GetForeignPaths(PlannerInfo *root,
 				RelOptInfo *baserel,
@@ -92,6 +105,7 @@ GetForeignPaths(PlannerInfo *root,
     Cost totalCost = startupCost + baserel->rows;
 
     /* Create a ForeignPath node and add it as only possible path */
+    // https://doxygen.postgresql.org/pathnode_8c.html#a20b2c8a564bb57ed4187825dec56f707
     add_path(baserel,
              (Path *) create_foreignscan_path(root,
                                               baserel,
@@ -105,13 +119,15 @@ GetForeignPaths(PlannerInfo *root,
                                               NIL)); /* no fdw_private data */
 }
 
+
+// 创建一个ForeignScan 计划的节点，从选择的外部acess path中创建
 static ForeignScan*
 GetForeignPlan(PlannerInfo *root,
 			   RelOptInfo *baserel,
 			   Oid foreignTableId,
 			   ForeignPath *bestPath,
 			   List *targetList,
-			   List *scanClauses,
+			   List *scanClauses,    //
 			   Plan *outerPlan)
 {
     /*
@@ -136,6 +152,7 @@ GetForeignPlan(PlannerInfo *root,
      * handled elsewhere).
      */
 
+    // clause 从句
     scanClauses = extract_actual_clauses(scanClauses, false);
 
     /* Create the ForeignScan node */
@@ -231,8 +248,11 @@ GetKeyBasedQual(ForeignScanState *scanState,
     return;
 }
 
+
+// 开始执行外部表格的扫描
 static void
-BeginForeignScan(ForeignScanState *scanState, int executorFlags)
+BeginForeignScan(ForeignScanState *scanState, 
+                int executorFlags)
 {
 	static LsmCursorId operationId = 0;  /* a SQL might cause multiple scans */
 
@@ -391,6 +411,7 @@ GetNextFromBatch(Oid relationId,
     return found;
 }
 
+// 从外部表格数据中，返回一行数据从外部表的slot中
 static TupleTableSlot*
 IterateForeignScan(ForeignScanState *scanState)
 {
@@ -556,6 +577,8 @@ AddForeignUpdateTargets(Query *parsetree,
     parsetree->targetList = lappend(parsetree->targetList, entry);
 }
 
+
+
 static List*
 PlanForeignModify(PlannerInfo *root,
 				  ModifyTable *plan,
@@ -587,6 +610,7 @@ PlanForeignModify(PlannerInfo *root,
     return NULL;
 }
 
+// 开始执行一个外部表的修改，比如curd
 static void
 BeginForeignModify(ModifyTableState *modifyTableState,
 				   ResultRelInfo *resultRelInfo,
@@ -639,6 +663,8 @@ BeginForeignModify(ModifyTableState *modifyTableState,
     resultRelInfo->ri_FdwState = (void *) writeState;
 }
 
+
+// 将slot序列化为key和val进行插入操作
 static void
 SerializeTuple(StringInfo key,
 			   StringInfo val,
@@ -652,25 +678,50 @@ SerializeTuple(StringInfo key,
         Datum datum = tupleSlot->tts_values[index];
         if (tupleSlot->tts_isnull[index]) {
             if (index == 0) {
+                // 元组的第一个属性为空
                 ereport(ERROR, (errmsg("LSM: first column cannot be null!")));
             }
 
             SerializeNullAttribute(tupleDescriptor, index, val);
         } else {
-            SerializeAttribute(tupleDescriptor,
-                               index,
-                               datum,
-                               index == 0 ? key : val);
+            // 序列化非空的字段
+            SerializeAttribute(tupleDescriptor, //元组
+                               index,   // 当前属性的下标
+                               datum,   // 当前属性所对应的值
+                               index == 0 ? key : val); //key,val初始化为空
         }
     }
 }
 
+
+// 插入一个tuple到外部表中
+// slot : 槽
+// resultRelInfo 用于描述外部表
+// slot 
+// planSlot 
 static TupleTableSlot*
 ExecForeignInsert(EState *executorState,
 				  ResultRelInfo *resultRelInfo,
 				  TupleTableSlot *slot,
 				  TupleTableSlot *planSlot)
 {
+
+    /**
+     * 
+     * 执行器机制被用于四种基本SQL查询类型：SELECT、INSERT、 UPDATE以及DELETE。对于SELECT，
+     * 顶层执行器代码只需要发送查询计划树返回的每个行给客户端。
+     * 对于INSERT，每一个被返回的行被插入到INSERT中指定的目标表中。
+     * 这通过一个被称为ModifyTable的特殊顶层计划节点完成
+     * （一个简单的INSERT ... VALUES命令会创建一个由一个Result节点组成的简单计划树，
+     *  该节点只计算一个结果行，在它之上的ModifyTable节点会执行插入。但是INSERT ... SELECT可以用到执行器机制的全部功能）。
+     * 对于UPDATE，规划器会安排每一个计算行包含所有被更新的列值加上原始目标行的TID（元组ID或行ID），
+     * 这些数据也会被输入到一个ModifyTable节点，
+     * 该节点将利用这些信息创建一个新的被更新行并标记旧行为被删除。
+     * 对于DELETE，唯一被计划返回的列是TID，ModifyTable节点简单地使用TID访问每一个目标行并将其标记为被删除。
+     * ModifyTable以及CRUD操作的底层原理：https://www.cnblogs.com/flying-tiger/p/8418293.html
+     * /
+
+
     /*
      * Insert one tuple into the foreign table. executorState is global
      * execution state for the query. resultRelInfo is the ResultRelInfo struct
@@ -728,6 +779,7 @@ ExecForeignInsert(EState *executorState,
 	initStringInfo(&val);
     SerializeTuple(&key, &val, slot);
 
+    // 调用lsm_client中的接口进行插入
     if (!LsmInsert(MyBackendId, foreignTableId, key.data, key.len, val.data, val.len))
 		elog(ERROR, "LSM: Failed to insert tuple");
 
@@ -741,6 +793,8 @@ ExecForeignInsert(EState *executorState,
     return slot;
 }
 
+
+// 执行外部数据更新
 static TupleTableSlot*
 ExecForeignUpdate(EState *executorState,
 				  ResultRelInfo *resultRelInfo,
@@ -753,7 +807,7 @@ ExecForeignUpdate(EState *executorState,
      * the target foreign table. slot contains the new data for the tuple; it
      * will match the rowtype definition of the foreign table. planSlot contains
      * the tuple that was generated by the ModifyTable plan node's subplan; it
-     * differs from slot in possibly containing additional "junk" columns. In
+     * differs from slot in possibly containing additional "junk" columns. In  // 重要：in possibly containing additional "junk" columns
      * particular, any junk columns that were requested by
      * AddForeignUpdateTargets will be available from this slot.
      *
@@ -804,8 +858,9 @@ ExecForeignUpdate(EState *executorState,
 
 	initStringInfo(&key);
 	initStringInfo(&val);
+    // 将slot序列化为key 和 val
     SerializeTuple(&key, &val, slot);
-
+    // 将获取到的key和val进行insert操作
     LsmInsert(MyBackendId, foreignTableId, key.data, key.len, val.data, val.len);
 
 #if PG_VERSION_NUM>=130000
@@ -975,8 +1030,13 @@ AnalyzeForeignTable(Relation relation,
     return false;
 }
 
+// 文档：https://www.postgresql.org/docs/9.6/fdwhandler.html
+// 这是整个fdw程序的入口
 Datum lsm_fdw_handler(PG_FUNCTION_ARGS)
 {
+    //FDW 处理函数返回一个 palloc 的FdwRoutine结构，其中包含指向下面描述的回调函数的指针。
+    //FdwRoutine结构类型在src/include/foreign/fdwapi.h中声明
+    //https://doxygen.postgresql.org/fdwapi_8h_source.html#l00204
     FdwRoutine *routine = makeNode(FdwRoutine);
 
     ereport(DEBUG1, (errmsg("LSM: entering function %s", __func__)));
@@ -991,6 +1051,10 @@ Datum lsm_fdw_handler(PG_FUNCTION_ARGS)
      */
 
     /* these are required */
+    // http://www.postgres.cn/docs/12/fdw-callbacks.html
+    /*
+    在对一个扫描外部表的查询进行规划的开头将调用该函数
+    */
     routine->GetForeignRelSize = GetForeignRelSize;
     routine->GetForeignPaths = GetForeignPaths;
     routine->GetForeignPlan = GetForeignPlan;
@@ -999,6 +1063,7 @@ Datum lsm_fdw_handler(PG_FUNCTION_ARGS)
     routine->ReScanForeignScan = ReScanForeignScan;
     routine->EndForeignScan = EndForeignScan;
 
+    // remainder-余下的，余下的函数是可选的，如果不需要的话，可以为NULL
     /* remainder are optional - use NULL if not required */
     /* support for insert / update / delete */
     routine->AddForeignUpdateTargets = AddForeignUpdateTargets;

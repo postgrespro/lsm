@@ -8,8 +8,13 @@
 
 using namespace rocksdb;
 
+/**
+ * 对Rocksdb的封装
+ * 
+ * /
+
 /*
- * Wrapper for RocksSB
+ * Wrapper for RocksDB
  */
 struct LsmConnection
 {
@@ -44,6 +49,7 @@ struct LsmMessageHeader
 /*
  * Protocol message
  */
+// 用于包装传输的数据
 struct LsmMessage
 {
 	LsmMessageHeader hdr;
@@ -54,8 +60,10 @@ struct LsmMessage
 /*
  * Queue for tranferring data between backend and LSM worker thread.
  */
+// 用于将数据传送到rocksdb中
 struct LsmQueue
 {
+	// ring buffer 环状缓冲区
 	volatile int   getPos;   // get position in ring buffer (updated only by consumer)
 	volatile int   putPos;   // put position in ring buffer (updated only by producer)
 	volatile int   respSize; // response size
@@ -84,11 +92,13 @@ struct LsmCursor
 
 struct LsmServer;
 
+
+// 主要封装了对lsm的操作，也就是lsmServer中的一个工作进程
 struct LsmWorker
 {
 	std::map<LsmCursorId, LsmCursor> cursors;
-	LsmServer* server;
-	LsmQueue*  queue;
+	LsmServer* server;	// 一个server有很多的worker
+	LsmQueue*  queue;	//一个worker对应一个queue
 	pthread_t  thread;
 
 	LsmWorker(LsmServer* s, LsmQueue* q) : server(s), queue(q) {}
@@ -150,6 +160,8 @@ class CriticalSection
 	}
 };
 
+
+// 此结构体包含了很多对rocksdb的操作，非常重要，是一个对于rocksdb封装的最大对象，包含了很多的LsmWorker
 struct LsmServer
 {
 	LsmWorker** workers;
