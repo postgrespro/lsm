@@ -23,7 +23,7 @@ LsmConnection::open(char const* path)
     db_path = p;   // 给LSMConnection中的属性赋值
 
     // @todo hr,wu 使用LSMConnection中的关于列族的参数来打开数据库
-    Status s = DB::Open(options, std::string(path), column_families, &handles, &db);
+    Status s = DB::Open(options, std::string(path), &db);
     if (!s.ok())
 		LsmError(s.getState());
 }
@@ -31,11 +31,6 @@ LsmConnection::open(char const* path)
 void
 LsmConnection::close()
 {
-    // @todo 关闭列族
-    for (auto handle : handles) {
-        Status s = db->DestroyColumnFamilyHandle(handle);
-        assert(s.ok());
-    }
     delete db;
 	db = NULL;
 }
