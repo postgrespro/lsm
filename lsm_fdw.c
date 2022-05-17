@@ -32,13 +32,22 @@
 PG_MODULE_MAGIC;
 #endif
 
-// 魔法块
-PG_FUNCTION_INFO_V1(pg_rocksdb_handler);
+PG_FUNCTION_INFO_V1(pg_rocksdb_fdw_handler);
 
+
+/*
+root是规划器的关于该查询的全局信息
+baserel是规划器的关于该表的信息
+foreigntableid是外部表在pg_class中的 OID （foreigntableid可以从规划器的数据结构中获得，但是为了减少工作量，这里直接显式地将它传递给函数）。
+*/
+
+// 这些hook函数的参数都是系统定义好的
+// 获取外部表格的size
+// baserel 是planner中关于外部表格的信息
 static void
 GetForeignRelSize(PlannerInfo *root,
-				  RelOptInfo *baserel,
-				  Oid foreignTableId)
+                  RelOptInfo *baserel,
+                  Oid foreignTableId)
 {
     /*
      * Obtain relation size estimates for a foreign table. This is called at
@@ -64,13 +73,16 @@ GetForeignRelSize(PlannerInfo *root,
      * we should open & close db multiple times.
      */
     /* TODO: better estimation */
+    // baserel is the planer's informatino about this table
     baserel->rows = LsmCount(MyBackendId, foreignTableId);
 }
 
+
+// 创建一个扫描外部表的访问路径
 static void
 GetForeignPaths(PlannerInfo *root,
-				RelOptInfo *baserel,
-				Oid foreignTableId)
+                RelOptInfo *baserel,
+                Oid foreignTableId)
 {
     /*
      * Create possible access paths for a scan on a foreign table. This is
@@ -87,12 +99,13 @@ GetForeignPaths(PlannerInfo *root,
      * that is needed to identify the specific scan method intended.
      */
 
-    ereport(DEBUG1, (errmsg("LSM: entering function %s", __func__)));
+    ereport(DEBUG1, (errmsg("pg_rocksdb: entering function %s", __func__)));
 
     Cost startupCost = 0;
     Cost totalCost = startupCost + baserel->rows;
 
     /* Create a ForeignPath node and add it as only possible path */
+    // https://doxygen.postgresql.org/pathnode_8c.html#a20b2c8a564bb57ed4187825dec56f707
     add_path(baserel,
              (Path *) create_foreignscan_path(root,
                                               baserel,
@@ -106,14 +119,16 @@ GetForeignPaths(PlannerInfo *root,
                                               NIL)); /* no fdw_private data */
 }
 
+
+// 创建一个ForeignScan 计划的节点，从选择的外部acess path中创建
 static ForeignScan*
 GetForeignPlan(PlannerInfo *root,
-			   RelOptInfo *baserel,
-			   Oid foreignTableId,
-			   ForeignPath *bestPath,
-			   List *targetList,
-			   List *scanClauses,
-			   Plan *outerPlan)
+               RelOptInfo *baserel,
+               Oid foreignTableId,
+               ForeignPath *bestPath,
+               List *targetList,
+               List *scanClauses,    //
+               Plan *outerPlan)
 {
     /*
      * Create a ForeignScan plan node from the selected foreign access path.
@@ -137,6 +152,7 @@ GetForeignPlan(PlannerInfo *root,
      * handled elsewhere).
      */
 
+    // clause 从句
     scanClauses = extract_actual_clauses(scanClauses, false);
 
     /* Create the ForeignScan node */
@@ -152,9 +168,9 @@ GetForeignPlan(PlannerInfo *root,
 
 static void
 GetKeyBasedQual(ForeignScanState *scanState,
-				Node *node,
-				Relation relation,
-				TableReadState *readState)
+                Node *node,
+                Relation relation,
+                TableReadState *readState)
 {
     if (!node || !IsA(node, OpExpr)) {
         return;
@@ -171,9 +187,9 @@ GetKeyBasedQual(ForeignScanState *scanState,
     }
 
     Node *right = list_nth(op->args, 1);
-	if (IsA(right, RelabelType)) {
-		right = (Node*) ((RelabelType*)right)->arg;
-	}
+    if (IsA(right, RelabelType)) {
+        right = (Node*) ((RelabelType*)right)->arg;
+    }
     if (!IsA(right, Const) && !IsA(right, Param)) {
         return;
     }
@@ -199,20 +215,20 @@ GetKeyBasedQual(ForeignScanState *scanState,
     ReleaseSysCache(opertup);
 
     Datum keyDatum;
-	Oid   keyType;
+    Oid   keyType;
 
-	if (IsA(right, Const))
-	{
-		Const *constNode = (Const *) right;
-		keyDatum = constNode->constvalue;
-		keyType = constNode->consttype;
-	}
-	else
-	{
-		Param *paramNode = (Param *) right;
-		keyType = paramNode->paramtype;
-		keyDatum = scanState->ss.ps.state->es_param_list_info->params[paramNode->paramid-1].value;
-	}
+    if (IsA(right, Const))
+    {
+        Const *constNode = (Const *) right;
+        keyDatum = constNode->constvalue;
+        keyType = constNode->consttype;
+    }
+    else
+    {
+        Param *paramNode = (Param *) right;
+        keyType = paramNode->paramtype;
+        keyDatum = scanState->ss.ps.state->es_param_list_info->params[paramNode->paramid-1].value;
+    }
     TypeCacheEntry *typeEntry = lookup_type_cache(keyType, 0);
 
     /* constant gets varlena with 4B header, same with copy uility */
@@ -232,10 +248,13 @@ GetKeyBasedQual(ForeignScanState *scanState,
     return;
 }
 
+
+// 开始执行外部表格的扫描
 static void
-BeginForeignScan(ForeignScanState *scanState, int executorFlags)
+BeginForeignScan(ForeignScanState *scanState,
+                 int executorFlags)
 {
-	static LsmCursorId operationId = 0;  /* a SQL might cause multiple scans */
+    static LsmCursorId operationId = 0;  /* a SQL might cause multiple scans */
 
     /*
      * Begin executing a foreign scan. This is called during executor startup.
@@ -256,7 +275,7 @@ BeginForeignScan(ForeignScanState *scanState, int executorFlags)
      *
      */
 
-    ereport(DEBUG1, (errmsg("LSM: entering function %s", __func__)));
+    ereport(DEBUG1, (errmsg("pg_rocksdb: entering function %s", __func__)));
 
     TableReadState *readState = palloc0(sizeof(TableReadState));
     readState->isKeyBased = false;
@@ -276,7 +295,7 @@ BeginForeignScan(ForeignScanState *scanState, int executorFlags)
     foreach (lc, scanState->ss.ps.plan->qual) {
         Expr *state = lfirst(lc);
         GetKeyBasedQual(scanState,
-						(Node *) state,
+                        (Node *) state,
                         scanState->ss.ss_currentRelation,
                         readState);
         if (readState->isKeyBased) {
@@ -285,14 +304,14 @@ BeginForeignScan(ForeignScanState *scanState, int executorFlags)
     }
 
     if (!readState->isKeyBased)
-	{
+    {
         Oid relationId = RelationGetRelid(scanState->ss.ss_currentRelation);
 
         readState->hasNext = LsmReadNext(MyBackendId,
-										 relationId,
-										 ++operationId,
-										 readState->buf,
-										 &readState->bufLen);
+                                         relationId,
+                                         ++operationId,
+                                         readState->buf,
+                                         &readState->bufLen);
 
         readState->next = readState->buf;
         readState->operationId = operationId;
@@ -301,8 +320,8 @@ BeginForeignScan(ForeignScanState *scanState, int executorFlags)
 
 static void
 DeserializeTuple(StringInfo key,
-				 StringInfo val,
-				 TupleTableSlot *tupleSlot)
+                 StringInfo val,
+                 TupleTableSlot *tupleSlot)
 {
 
     Datum *values = tupleSlot->tts_values;
@@ -318,9 +337,9 @@ DeserializeTuple(StringInfo key,
     int offset = 0;
     char *current = key->data;
     for (int index = 0; index < count; index++)
-	{
+    {
         if (index > 0)
-		{
+        {
             uint64 dataLen = 0;
             uint8 headerLen = DecodeVarintLength(current,
                                                  val->data + val->len,
@@ -328,7 +347,7 @@ DeserializeTuple(StringInfo key,
             offset += headerLen;
             current = val->data + offset;
             if (dataLen == 0)
-			{
+            {
                 nulls[index] = true;
                 continue;
             }
@@ -350,24 +369,24 @@ DeserializeTuple(StringInfo key,
 
 static bool
 GetNextFromBatch(Oid relationId,
-				 TableReadState *readState,
-				 char **key,
-				 size_t *keyLen,
-				 char **val,
-				 size_t *valLen)
+                 TableReadState *readState,
+                 char **key,
+                 size_t *keyLen,
+                 char **val,
+                 size_t *valLen)
 {
     bool found = false;
     if (readState->next < readState->buf + readState->bufLen)
-	{
+    {
         found = true;
     }
-	else if (readState->hasNext)
-	{
+    else if (readState->hasNext)
+    {
         readState->hasNext = LsmReadNext(MyBackendId,
-										 relationId,
-										 readState->operationId,
-										 readState->buf,
-										 &readState->bufLen);
+                                         relationId,
+                                         readState->operationId,
+                                         readState->buf,
+                                         &readState->bufLen);
 
         readState->next  = readState->buf;
         if (readState->bufLen > 0) {
@@ -376,15 +395,15 @@ GetNextFromBatch(Oid relationId,
     }
 
     if (found) {
-		int len;
+        int len;
         memcpy(&len, readState->next, sizeof(len));
-		*keyLen = len;
+        *keyLen = len;
         readState->next += sizeof(len);
         *key = readState->next;
         readState->next += len;
 
         memcpy(&len, readState->next, sizeof(len));
-		*valLen = len;
+        *valLen = len;
         readState->next += sizeof(len);
         *val = readState->next;
         readState->next += len;
@@ -392,6 +411,7 @@ GetNextFromBatch(Oid relationId,
     return found;
 }
 
+// 从外部表格数据中，返回一行数据从外部表的slot中
 static TupleTableSlot*
 IterateForeignScan(ForeignScanState *scanState)
 {
@@ -419,7 +439,7 @@ IterateForeignScan(ForeignScanState *scanState)
      * (just as you would need to do in the case of a data type mismatch).
      */
 
-    ereport(DEBUG1, (errmsg("LSM: entering function %s", __func__)));
+    ereport(DEBUG1, (errmsg("pg_rocksdb: entering function %s", __func__)));
 
     TupleTableSlot *tupleSlot = scanState->ss.ss_ScanTupleSlot;
     ExecClearTuple(tupleSlot);
@@ -434,12 +454,12 @@ IterateForeignScan(ForeignScanState *scanState)
             k = readState->key->data;
             kLen = readState->key->len;
             found = LsmLookup(MyBackendId, relationId, k, kLen, readState->buf, &vLen);
-			v = readState->buf;
+            v = readState->buf;
             readState->done = true;
         }
     }
-	else
-	{
+    else
+    {
         found = GetNextFromBatch(relationId,
                                  readState,
                                  &k,
@@ -449,11 +469,11 @@ IterateForeignScan(ForeignScanState *scanState)
     }
 
     if (found)
-	{
+    {
         StringInfoData key;
         StringInfoData val;
-		initStringInfo(&key);
-		initStringInfo(&val);
+        initStringInfo(&key);
+        initStringInfo(&val);
         appendBinaryStringInfo(&key, k, kLen);
         appendBinaryStringInfo(&val, v, vLen);
 
@@ -473,7 +493,7 @@ ReScanForeignScan(ForeignScanState *scanState)
      * return exactly the same rows.
      */
 
-    ereport(DEBUG1, (errmsg("LSM: entering function %s", __func__)));
+    ereport(DEBUG1, (errmsg("pg_rocksdb: entering function %s", __func__)));
 }
 
 static void
@@ -485,14 +505,14 @@ EndForeignScan(ForeignScanState *scanState)
      * remote servers should be cleaned up.
      */
 
-    ereport(DEBUG1, (errmsg("LSM: entering function %s", __func__)));
+    ereport(DEBUG1, (errmsg("pg_rocksdb: entering function %s", __func__)));
 
     TableReadState *readState = (TableReadState *) scanState->fdw_state;
     Assert(readState);
 
     Oid relationId = RelationGetRelid(scanState->ss.ss_currentRelation);
     if (!readState->isKeyBased)
-	{
+    {
         LsmCloseCursor(MyBackendId, relationId, readState->operationId);
     }
 
@@ -501,8 +521,8 @@ EndForeignScan(ForeignScanState *scanState)
 
 static void
 AddForeignUpdateTargets(Query *parsetree,
-						RangeTblEntry *tableEntry,
-						Relation targetRelation)
+                        RangeTblEntry *tableEntry,
+                        Relation targetRelation)
 {
     /*
      * UPDATE and DELETE operations are performed against rows previously
@@ -531,7 +551,7 @@ AddForeignUpdateTargets(Query *parsetree,
      * relies on an unchanging primary key to identify rows.)
      */
 
-    ereport(DEBUG1, (errmsg("LSM: entering function %s", __func__)));
+    ereport(DEBUG1, (errmsg("pg_rocksdb: entering function %s", __func__)));
 
     /*
      * We are using first column as row identification column, so we are adding
@@ -557,11 +577,13 @@ AddForeignUpdateTargets(Query *parsetree,
     parsetree->targetList = lappend(parsetree->targetList, entry);
 }
 
+
+
 static List*
 PlanForeignModify(PlannerInfo *root,
-				  ModifyTable *plan,
-				  Index resultRelation,
-				  int subplanIndex)
+                  ModifyTable *plan,
+                  Index resultRelation,
+                  int subplanIndex)
 {
     /*
      * Perform any additional planning actions needed for an insert, update,
@@ -583,17 +605,18 @@ PlanForeignModify(PlannerInfo *root,
      * BeginForeignModify will be NIL.
      */
 
-    ereport(DEBUG1, (errmsg("LSM: entering function %s", __func__)));
+    ereport(DEBUG1, (errmsg("pg_rocksdb: entering function %s", __func__)));
 
     return NULL;
 }
 
+// 开始执行一个外部表的修改，比如curd
 static void
 BeginForeignModify(ModifyTableState *modifyTableState,
-				   ResultRelInfo *resultRelInfo,
-				   List *fdwPrivate,
-				   int subplanIndex,
-				   int executorFlags)
+                   ResultRelInfo *resultRelInfo,
+                   List *fdwPrivate,
+                   int subplanIndex,
+                   int executorFlags)
 {
     /*
      * Begin executing a foreign table modification operation. This routine is
@@ -621,7 +644,7 @@ BeginForeignModify(ModifyTableState *modifyTableState,
      * during executor startup.
      */
 
-    ereport(DEBUG1, (errmsg("LSM: entering function %s", __func__)));
+    ereport(DEBUG1, (errmsg("pg_rocksdb: entering function %s", __func__)));
 
     if (executorFlags & EXEC_FLAG_EXPLAIN_ONLY) {
         return;
@@ -640,10 +663,12 @@ BeginForeignModify(ModifyTableState *modifyTableState,
     resultRelInfo->ri_FdwState = (void *) writeState;
 }
 
+
+// 将slot序列化为key和val进行插入操作
 static void
 SerializeTuple(StringInfo key,
-			   StringInfo val,
-			   TupleTableSlot *tupleSlot)
+               StringInfo val,
+               TupleTableSlot *tupleSlot)
 {
     TupleDesc tupleDescriptor = tupleSlot->tts_tupleDescriptor;
     int count = tupleDescriptor->natts;
@@ -653,25 +678,50 @@ SerializeTuple(StringInfo key,
         Datum datum = tupleSlot->tts_values[index];
         if (tupleSlot->tts_isnull[index]) {
             if (index == 0) {
-                ereport(ERROR, (errmsg("LSM: first column cannot be null!")));
+                // 元组的第一个属性为空
+                ereport(ERROR, (errmsg("pg_rocksdb: first column cannot be null!")));
             }
 
             SerializeNullAttribute(tupleDescriptor, index, val);
         } else {
-            SerializeAttribute(tupleDescriptor,
-                               index,
-                               datum,
-                               index == 0 ? key : val);
+            // 序列化非空的字段
+            SerializeAttribute(tupleDescriptor, //元组
+                               index,   // 当前属性的下标
+                               datum,   // 当前属性所对应的值
+                               index == 0 ? key : val); //key,val初始化为空
         }
     }
 }
 
+
+// 插入一个tuple到外部表中
+// slot : 槽
+// resultRelInfo 用于描述外部表
+// slot
+// planSlot
 static TupleTableSlot*
 ExecForeignInsert(EState *executorState,
-				  ResultRelInfo *resultRelInfo,
-				  TupleTableSlot *slot,
-				  TupleTableSlot *planSlot)
+                  ResultRelInfo *resultRelInfo,
+                  TupleTableSlot *slot,
+                  TupleTableSlot *planSlot)
 {
+
+    /**
+     *
+     * 执行器机制被用于四种基本SQL查询类型：SELECT、INSERT、 UPDATE以及DELETE。对于SELECT，
+     * 顶层执行器代码只需要发送查询计划树返回的每个行给客户端。
+     * 对于INSERT，每一个被返回的行被插入到INSERT中指定的目标表中。
+     * 这通过一个被称为ModifyTable的特殊顶层计划节点完成
+     * （一个简单的INSERT ... VALUES命令会创建一个由一个Result节点组成的简单计划树，
+     *  该节点只计算一个结果行，在它之上的ModifyTable节点会执行插入。但是INSERT ... SELECT可以用到执行器机制的全部功能）。
+     * 对于UPDATE，规划器会安排每一个计算行包含所有被更新的列值加上原始目标行的TID（元组ID或行ID），
+     * 这些数据也会被输入到一个ModifyTable节点，
+     * 该节点将利用这些信息创建一个新的被更新行并标记旧行为被删除。
+     * 对于DELETE，唯一被计划返回的列是TID，ModifyTable节点简单地使用TID访问每一个目标行并将其标记为被删除。
+     * ModifyTable以及CRUD操作的底层原理：https://www.cnblogs.com/flying-tiger/p/8418293.html
+     * /
+
+
     /*
      * Insert one tuple into the foreign table. executorState is global
      * execution state for the query. resultRelInfo is the ResultRelInfo struct
@@ -702,7 +752,7 @@ ExecForeignInsert(EState *executorState,
 
     TupleDesc tupleDescriptor = slot->tts_tupleDescriptor;
 #if PG_VERSION_NUM>=130000
-	bool shouldFree;
+    bool shouldFree;
 	HeapTuple heapTuple = ExecFetchSlotHeapTuple(slot, false, &shouldFree);
     if (HeapTupleHasExternal(heapTuple))
 	{
@@ -725,28 +775,31 @@ ExecForeignInsert(EState *executorState,
     Relation relation = resultRelInfo->ri_RelationDesc;
     Oid foreignTableId = RelationGetRelid(relation);
 
-	initStringInfo(&key);
-	initStringInfo(&val);
+    initStringInfo(&key);
+    initStringInfo(&val);
     SerializeTuple(&key, &val, slot);
 
+    // 调用lsm_client中的接口进行插入
     if (!LsmInsert(MyBackendId, foreignTableId, key.data, key.len, val.data, val.len))
-		elog(ERROR, "LSM: Failed to insert tuple");
+        elog(ERROR, "LSM: Failed to insert tuple");
 
 #if PG_VERSION_NUM>=130000
-	if (shouldFree)
+    if (shouldFree)
 		pfree(heapTuple);
 #endif
-	pfree(key.data);
-	pfree(val.data);
+    pfree(key.data);
+    pfree(val.data);
 
     return slot;
 }
 
+
+// 执行外部数据更新
 static TupleTableSlot*
 ExecForeignUpdate(EState *executorState,
-				  ResultRelInfo *resultRelInfo,
-				  TupleTableSlot *slot,
-				  TupleTableSlot *planSlot)
+                  ResultRelInfo *resultRelInfo,
+                  TupleTableSlot *slot,
+                  TupleTableSlot *planSlot)
 {
     /*
      * Update one tuple in the foreign table. executorState is global execution
@@ -754,7 +807,7 @@ ExecForeignUpdate(EState *executorState,
      * the target foreign table. slot contains the new data for the tuple; it
      * will match the rowtype definition of the foreign table. planSlot contains
      * the tuple that was generated by the ModifyTable plan node's subplan; it
-     * differs from slot in possibly containing additional "junk" columns. In
+     * differs from slot in possibly containing additional "junk" columns. In  // 重要：in possibly containing additional "junk" columns
      * particular, any junk columns that were requested by
      * AddForeignUpdateTargets will be available from this slot.
      *
@@ -779,7 +832,7 @@ ExecForeignUpdate(EState *executorState,
 
     TupleDesc tupleDescriptor = slot->tts_tupleDescriptor;
 #if PG_VERSION_NUM>=130000
-	bool shouldFree;
+    bool shouldFree;
 	HeapTuple heapTuple = ExecFetchSlotHeapTuple(slot, false, &shouldFree);
     if (HeapTupleHasExternal(heapTuple))
 	{
@@ -790,7 +843,7 @@ ExecForeignUpdate(EState *executorState,
     }
 #else
     if (HeapTupleHasExternal(slot->tts_tuple))
-	{
+    {
         /* detoast any toasted attributes */
         slot->tts_tuple = toast_flatten_tuple(slot->tts_tuple, tupleDescriptor);
     }
@@ -803,27 +856,28 @@ ExecForeignUpdate(EState *executorState,
     Relation relation = resultRelInfo->ri_RelationDesc;
     Oid foreignTableId = RelationGetRelid(relation);
 
-	initStringInfo(&key);
-	initStringInfo(&val);
+    initStringInfo(&key);
+    initStringInfo(&val);
+    // 将slot序列化为key 和 val
     SerializeTuple(&key, &val, slot);
-
+    // 将获取到的key和val进行insert操作
     LsmInsert(MyBackendId, foreignTableId, key.data, key.len, val.data, val.len);
 
 #if PG_VERSION_NUM>=130000
-	if (shouldFree)
+    if (shouldFree)
 		pfree(heapTuple);
 #endif
-	pfree(key.data);
-	pfree(val.data);
+    pfree(key.data);
+    pfree(val.data);
 
     return slot;
 }
 
 static TupleTableSlot*
 ExecForeignDelete(EState *executorState,
-				  ResultRelInfo *resultRelInfo,
-				  TupleTableSlot *slot,
-				  TupleTableSlot *planSlot)
+                  ResultRelInfo *resultRelInfo,
+                  TupleTableSlot *slot,
+                  TupleTableSlot *planSlot)
 {
     /*
      * Delete one tuple from the foreign table. executorState is global
@@ -859,22 +913,22 @@ ExecForeignDelete(EState *executorState,
     Relation relation = resultRelInfo->ri_RelationDesc;
     Oid foreignTableId = RelationGetRelid(relation);
 
-	initStringInfo(&key);
-	initStringInfo(&val);
+    initStringInfo(&key);
+    initStringInfo(&val);
     SerializeTuple(&key, &val, planSlot);
 
     if (!LsmDelete(MyBackendId, foreignTableId, key.data, key.len))
-		elog(ERROR, "LSM: Failed to delete tuple");
+        elog(ERROR, "LSM: Failed to delete tuple");
 
-	pfree(key.data);
-	pfree(val.data);
+    pfree(key.data);
+    pfree(val.data);
 
-	return slot;
+    return slot;
 }
 
 static void
 EndForeignModify(EState *executorState,
-				 ResultRelInfo *resultRelInfo)
+                 ResultRelInfo *resultRelInfo)
 {
     /*
      * End the table update and release resources. It is normally not important
@@ -901,7 +955,7 @@ EndForeignModify(EState *executorState,
 
 static void
 ExplainForeignScan(ForeignScanState *scanState,
-				   struct ExplainState * explainState)
+                   struct ExplainState * explainState)
 {
     /*
      * Print additional EXPLAIN output for a foreign table scan. This function
@@ -919,10 +973,10 @@ ExplainForeignScan(ForeignScanState *scanState,
 
 static void
 ExplainForeignModify(ModifyTableState *modifyTableState,
-					 ResultRelInfo *relationInfo,
-					 List *fdwPrivate,
-					 int subplanIndex,
-					 struct ExplainState *explainState)
+                     ResultRelInfo *relationInfo,
+                     List *fdwPrivate,
+                     int subplanIndex,
+                     struct ExplainState *explainState)
 {
     /*
      * Print additional EXPLAIN output for a foreign table update. This
@@ -941,8 +995,8 @@ ExplainForeignModify(ModifyTableState *modifyTableState,
 
 static bool
 AnalyzeForeignTable(Relation relation,
-					AcquireSampleRowsFunc *acquireSampleRowsFunc,
-					BlockNumber *totalPageCount)
+                    AcquireSampleRowsFunc *acquireSampleRowsFunc,
+                    BlockNumber *totalPageCount)
 {
     /* ----
      * This function is called when ANALYZE is executed on a foreign table. If
@@ -976,8 +1030,13 @@ AnalyzeForeignTable(Relation relation,
     return false;
 }
 
-Datum pg_rocksdb_handler(PG_FUNCTION_ARGS)
+// 文档：https://www.postgresql.org/docs/9.6/fdwhandler.html
+// 这是整个fdw程序的入口
+Datum pg_rocksdb_fdw_handler(PG_FUNCTION_ARGS)
 {
+    //FDW 处理函数返回一个 palloc 的FdwRoutine结构，其中包含指向下面描述的回调函数的指针。
+    //FdwRoutine结构类型在src/include/foreign/fdwapi.h中声明
+    //https://doxygen.postgresql.org/fdwapi_8h_source.html#l00204
     FdwRoutine *routine = makeNode(FdwRoutine);
 
     ereport(DEBUG1, (errmsg("LSM: entering function %s", __func__)));
@@ -992,20 +1051,25 @@ Datum pg_rocksdb_handler(PG_FUNCTION_ARGS)
      */
 
     /* these are required */
+    // http://www.postgres.cn/docs/12/fdw-callbacks.html
+    /*
+    在对一个扫描外部表的查询进行规划的开头将调用该函数
+    */
     routine->GetForeignRelSize = GetForeignRelSize;
     routine->GetForeignPaths = GetForeignPaths;
     routine->GetForeignPlan = GetForeignPlan;
-    routine->BeginForeignScan = BeginForeignScan;   //执行外部表扫描
+    routine->BeginForeignScan = BeginForeignScan;
     routine->IterateForeignScan = IterateForeignScan;
     routine->ReScanForeignScan = ReScanForeignScan;
     routine->EndForeignScan = EndForeignScan;
 
+    // remainder-余下的，余下的函数是可选的，如果不需要的话，可以为NULL
     /* remainder are optional - use NULL if not required */
     /* support for insert / update / delete */
     routine->AddForeignUpdateTargets = AddForeignUpdateTargets;
     routine->PlanForeignModify = PlanForeignModify;
     routine->BeginForeignModify = BeginForeignModify;
-    routine->ExecForeignInsert = ExecForeignInsert; //执行插入操作
+    routine->ExecForeignInsert = ExecForeignInsert;
     routine->ExecForeignUpdate = ExecForeignUpdate;
     routine->ExecForeignDelete = ExecForeignDelete;
     routine->EndForeignModify = EndForeignModify;
