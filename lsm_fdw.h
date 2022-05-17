@@ -26,7 +26,7 @@ typedef struct TableReadState {
     size_t bufLen; /* shared mem length, no next batch if it is 0 */
     char  *next;    /* pointer to the next data entry for IterateForeignScan */
     bool   hasNext;  /* whether a next batch from RangeQuery or ReadBatch*/
-    char   buf[LSM_MAX_RECORD_SIZE];
+	char   buf[LSM_MAX_RECORD_SIZE];
 } TableReadState;
 
 /*

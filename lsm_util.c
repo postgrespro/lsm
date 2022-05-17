@@ -41,13 +41,13 @@ static shmem_startup_hook_type PreviousShmemStartupHook = NULL;
 
 /* local functions forward declarations */
 static void LsmProcessUtility(PlannedStmt *plannedStmt,
-                              const char *queryString,
-                              ProcessUtilityContext context,
-                              ParamListInfo paramListInfo,
-                              QueryEnvironment *queryEnvironment,
-                              DestReceiver *destReceiver,
+							  const char *queryString,
+							  ProcessUtilityContext context,
+							  ParamListInfo paramListInfo,
+							  QueryEnvironment *queryEnvironment,
+							  DestReceiver *destReceiver,
 #if PG_VERSION_NUM>=130000
-        QueryCompletion *completionTag);
+							  QueryCompletion *completionTag);
 #else
                               char *completionTag);
 #endif
@@ -62,12 +62,12 @@ EncodeVarintLength(uint64 v, char* buf)
         v >>= 7;
     }
     *dst++ = (char)v;
-    return (uint8)(dst - buf);
+	return (uint8)(dst - buf);
 }
 
 static const char*
 GetVarint64Ptr(const char* p, const char* limit,
-               uint64_t* value)
+			   uint64_t* value)
 {
     uint64_t result = 0;
     for (uint32_t shift = 0; shift <= 63 && p < limit; shift += 7) {
@@ -132,7 +132,7 @@ static bool LsmTable(Oid relationId) {
 static char*
 LsmFilePath(Oid relid)
 {
-    return psprintf("%s/%d", LSM_FDW_NAME, relid);
+	return psprintf("%s/%d", LSM_FDW_NAME, relid);
 }
 
 /*
@@ -189,14 +189,14 @@ static void LsmCheckSuperuserPrivilegesForCopy(const CopyStmt* copyStmt) {
     if (copyStmt->filename != NULL && !superuser()) {
         if (copyStmt->is_program) {
             ereport(ERROR, (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-                    errmsg("must be superuser to COPY to or from a program"),
-                    errhint("Anyone can COPY to stdout or from stdin. "
-                            "psql's \\copy command also works for anyone.")));
+                     errmsg("must be superuser to COPY to or from a program"),
+                     errhint("Anyone can COPY to stdout or from stdin. "
+                             "psql's \\copy command also works for anyone.")));
         } else {
             ereport(ERROR, (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-                    errmsg("must be superuser to COPY to or from a file"),
-                    errhint("Anyone can COPY to stdout or from stdin. "
-                            "psql's \\copy command also works for anyone.")));
+                     errmsg("must be superuser to COPY to or from a file"),
+                     errhint("Anyone can COPY to stdout or from stdin. "
+                             "psql's \\copy command also works for anyone.")));
         }
     }
 }
@@ -247,7 +247,7 @@ void SerializeAttribute(TupleDesc tupleDescriptor,  //元组
     int offset = buffer->len;
     int datumLength = att_addlength_datum(offset, typeLength, datum);
 
-    /* the key does not have a size header */
+    /* the key does not have a size header */ 
     enlargeStringInfo(buffer, datumLength + (index == 0 ? 0 : HEADERBUFFSIZE));
 
     char *current = buffer->data + buffer->len;
@@ -283,7 +283,7 @@ void SerializeAttribute(TupleDesc tupleDescriptor,  //元组
  * number of copied rows.
  */
 static uint64 LsmCopyIntoTable(const CopyStmt *copyStmt,
-                               const char *queryString)
+							   const char *queryString)
 {
     /* Only superuser can copy from or to local file */
     LsmCheckSuperuserPrivilegesForCopy(copyStmt);
@@ -323,7 +323,7 @@ static uint64 LsmCopyIntoTable(const CopyStmt *copyStmt,
     while (found) {
         /* read the next row in tupleContext */
         MemoryContext oldContext =
-                MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
+            MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
 
         /*
          * 'econtext' is used to evaluate default expression for each columns
@@ -384,9 +384,9 @@ static uint64 LsmCopyOutTable(CopyStmt *copyStmt, const char *queryString) {
 
     if (copyStmt->attlist != NIL) {
         ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                errmsg("copy column list is not supported"),
-                errhint("use 'copy (select <columns> from <table>) to "
-                        "...' instead")));
+                        errmsg("copy column list is not supported"),
+                        errhint("use 'copy (select <columns> from <table>) to "
+                                "...' instead")));
     }
 
     RangeVar *relation = copyStmt->relation;
@@ -478,7 +478,7 @@ LsmCheckAlterTable(AlterTableStmt *alterStmt)
 
         if (alterCmd->subtype == AT_AddColumn) {
             ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                    errmsg("No support for adding column currently")));
+                            errmsg("No support for adding column currently")));
         }
     }
 }
@@ -490,15 +490,15 @@ LsmCheckAlterTable(AlterTableStmt *alterStmt)
  * utility command via macro CALL_PREVIOUS_UTILITY.
  */
 static void LsmProcessUtility(PlannedStmt *plannedStmt,
-                              const char *queryString,
-                              ProcessUtilityContext context,
-                              ParamListInfo paramListInfo,
-                              QueryEnvironment *queryEnvironment,
-                              DestReceiver *destReceiver,
+                             const char *queryString,
+                             ProcessUtilityContext context,
+                             ParamListInfo paramListInfo,
+                             QueryEnvironment *queryEnvironment,
+                             DestReceiver *destReceiver,
 #if PG_VERSION_NUM>=130000
-        QueryCompletion *completionTag)
+							 QueryCompletion *completionTag)
 #else
-                              char *completionTag)
+							  char *completionTag)
 #endif
 {
     Node *parseTree = plannedStmt->utilityStmt;
@@ -516,12 +516,12 @@ static void LsmProcessUtility(PlannedStmt *plannedStmt,
 
             if (completionTag != NULL) {
 #if PG_VERSION_NUM>=130000
-                SetQueryCompletion(completionTag, CMDTAG_COPY, rowCount);
+				SetQueryCompletion(completionTag, CMDTAG_COPY, rowCount);
 #else
                 snprintf(completionTag,
                          COMPLETION_TAG_BUFSIZE,
                          "COPY " UINT64_FORMAT,
-                        rowCount);
+                          rowCount);
 #endif
             }
         } else {
@@ -554,7 +554,7 @@ static void LsmProcessUtility(PlannedStmt *plannedStmt,
             ListCell *fileCell = NULL;
             foreach(fileCell, droppedTables) {
                 char *path = lfirst(fileCell);
-                rmtree(path, true);
+				rmtree(path, true);
             }
         }
     } else if (nodeTag(parseTree) == T_AlterTableStmt) {
@@ -580,87 +580,87 @@ static void LsmProcessUtility(PlannedStmt *plannedStmt,
 static void
 LsmShmemStartup(void)
 {
-    bool found;
-    void* ctl;
+	bool found;
+	void* ctl;
 
     if (PreviousShmemStartupHook)
-    {
+	{
         PreviousShmemStartupHook();
     }
 
-    LWLockAcquire(AddinShmemInitLock, LW_EXCLUSIVE);
+	LWLockAcquire(AddinShmemInitLock, LW_EXCLUSIVE);
 
-    ctl = ShmemInitStruct("lsm_control",
-                          LsmShmemSize(MaxConnections),
-                          &found);
-    if (!found)
-    {
-        LsmInitialize(ctl, MaxConnections);
-        if (mkdir(LSM_FDW_NAME, S_IRWXU) != 0 && errno != EEXIST)
-            elog(ERROR, "Failed to create lsm directory: %m");
-    }
-    else
-        LsmAttach(ctl);
+	ctl = ShmemInitStruct("lsm_control",
+						  LsmShmemSize(MaxConnections),
+						  &found);
+	if (!found)
+	{
+		LsmInitialize(ctl, MaxConnections);
+		if (mkdir(LSM_FDW_NAME, S_IRWXU) != 0 && errno != EEXIST)
+			elog(ERROR, "Failed to create lsm directory: %m");
+	}
+	else
+		LsmAttach(ctl);
 
-    LWLockRelease(AddinShmemInitLock);
+	LWLockRelease(AddinShmemInitLock);
 }
 
 void
 _PG_init(void)
 {
-    BackgroundWorker worker;
+	BackgroundWorker worker;
 
-    if (!process_shared_preload_libraries_in_progress)
-        elog(ERROR, "LSM: this extension should be loaded via shared_preload_libraries");
+	if (!process_shared_preload_libraries_in_progress)
+		elog(ERROR, "LSM: this extension should be loaded via shared_preload_libraries");
 
-    DefineCustomIntVariable("lsm.queue_size",
-                            "Size of LSM queue",
-                            NULL,
-                            &LsmQueueSize,
-                            LSM_MAX_RECORD_SIZE, LSM_MAX_RECORD_SIZE, INT_MAX,
-                            PGC_USERSET,
-                            0,
-                            NULL,
-                            NULL,
-                            NULL);
+	DefineCustomIntVariable("lsm.queue_size",
+							"Size of LSM queue",
+							NULL,
+							&LsmQueueSize,
+							LSM_MAX_RECORD_SIZE, LSM_MAX_RECORD_SIZE, INT_MAX,
+							PGC_USERSET,
+							0,
+							NULL,
+							NULL,
+							NULL);
 
     DefineCustomBoolVariable("lsm.sync",
-                             "Use synchronouse write",
-                             NULL,
-                             &LsmSync,
-                             false,
-                             PGC_USERSET,
-                             0,
-                             NULL,
-                             NULL,
-                             NULL);
+							 "Use synchronouse write",
+							 NULL,
+							 &LsmSync,
+							 false,
+							 PGC_USERSET,
+							 0,
+							 NULL,
+							 NULL,
+							 NULL);
 
     DefineCustomBoolVariable("lsm.upsert",
-                             "Use implicit upsert semantic",
-                             "If key of inserted record already exists, then replace old record with new one",
-                             &LsmUpsert,
-                             true,
-                             PGC_USERSET,
-                             0,
-                             NULL,
-                             NULL,
-                             NULL);
+							 "Use implicit upsert semantic",
+							 "If key of inserted record already exists, then replace old record with new one",
+							 &LsmUpsert,
+							 true,
+							 PGC_USERSET,
+							 0,
+							 NULL,
+							 NULL,
+							 NULL);
 
-    RequestAddinShmemSpace(LsmShmemSize(MaxConnections));
-    elog(DEBUG1, "Request %ld bytes of shared memory",  LsmShmemSize(MaxConnections));
+	RequestAddinShmemSpace(LsmShmemSize(MaxConnections));
+	elog(DEBUG1, "Request %ld bytes of shared memory",  LsmShmemSize(MaxConnections));
 
-    MemSet(&worker, 0, sizeof(BackgroundWorker));
-    worker.bgw_flags = BGWORKER_SHMEM_ACCESS;
-    worker.bgw_start_time = BgWorkerStart_ConsistentState;
-    strcpy(worker.bgw_library_name, "lsm");
-    strcpy(worker.bgw_function_name, "LsmWorkerMain");
-    strcpy(worker.bgw_name, "LSM worker");
-    strcpy(worker.bgw_type, "LSM worker");
+	MemSet(&worker, 0, sizeof(BackgroundWorker));
+	worker.bgw_flags = BGWORKER_SHMEM_ACCESS;
+	worker.bgw_start_time = BgWorkerStart_ConsistentState;
+	strcpy(worker.bgw_library_name, "lsm");
+	strcpy(worker.bgw_function_name, "LsmWorkerMain");
+	strcpy(worker.bgw_name, "LSM worker");
+	strcpy(worker.bgw_type, "LSM worker");
 
-    RegisterBackgroundWorker(&worker);
+	RegisterBackgroundWorker(&worker);
 
-    PreviousShmemStartupHook = shmem_startup_hook;
-    shmem_startup_hook = LsmShmemStartup;
+	PreviousShmemStartupHook = shmem_startup_hook;
+	shmem_startup_hook = LsmShmemStartup;
     PreviousProcessUtilityHook = ProcessUtility_hook;
     ProcessUtility_hook = LsmProcessUtility;
 }
@@ -678,25 +678,25 @@ void _PG_fini(void)
 static void
 LsmWorkerSigtermHandler(SIGNAL_ARGS)
 {
-    LsmStopWorkers();
+	LsmStopWorkers();
 }
 
 void
 LsmWorkerMain(Datum main_arg)
 {
-    pqsignal(SIGTERM, LsmWorkerSigtermHandler);
-    BackgroundWorkerUnblockSignals();
-    LsmRunWorkers(MaxConnections);
+	pqsignal(SIGTERM, LsmWorkerSigtermHandler);
+	BackgroundWorkerUnblockSignals();
+	LsmRunWorkers(MaxConnections);
 }
 
 void
 LsmError(char const* message)
 {
-    ereport(ERROR, (errmsg("LSM: %s", message)));
+	ereport(ERROR, (errmsg("LSM: %s", message)));
 }
 
 void
 LsmMemoryBarrier(void)
 {
-    pg_memory_barrier();
+	pg_memory_barrier();
 }
