@@ -104,7 +104,7 @@ A simple example is as follows (*you can run '`sudo -u postgres psql -U postgres
     \c example  
 
     CREATE EXTENSION pg_rocksdb;  
-    CREATE SERVER lsm_server FOREIGN DATA WRAPPER pg_rocksdb_fdw;  
+    CREATE SERVER pg_rocksdb_server FOREIGN DATA WRAPPER pg_rocksdb_fdw;  
 
     CREATE FOREIGN TABLE student(id INTEGER, name TEXT) SERVER pg_rocksdb_server;  
 
